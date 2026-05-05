@@ -1,0 +1,107 @@
+import { Handle, Position } from '@xyflow/react';
+
+const STATUS_COLOR = {
+  open: '#5b8dee',
+  in_progress: '#f0a500',
+  closed: '#4caf78',
+};
+
+// Per-type accent hue (overrides status color for the top border)
+const TYPE_ACCENT = {
+  bug:     '#e05555',
+  feature: '#a78bfa',
+  task:    '#5b8dee',
+};
+
+const TYPE_ICON = {
+  bug:     '⬡',
+  feature: '◈',
+  task:    '◻',
+};
+
+const PRIORITY_LABEL = ['P0', 'P1', 'P2', 'P3', 'P4'];
+
+// Priority → top border thickness and node opacity (for open issues)
+const PRIORITY_BORDER = [3, 2.5, 2, 1.5, 1];
+const PRIORITY_OPACITY = [1, 0.92, 0.82, 0.7, 0.55];
+
+export function BeadNode({ data, selected }) {
+  const { issue, inCount, outCount, isLast, expand, closeNode, focus } = data;
+  const isClosed = issue.status === 'closed';
+  const statusColor = isClosed ? '#555' : (STATUS_COLOR[issue.status] || '#888');
+  const typeAccent = isClosed ? '#444' : (TYPE_ACCENT[issue.issue_type] || TYPE_ACCENT.task);
+  const icon = TYPE_ICON[issue.issue_type] || '◻';
+  const priority = issue.priority ?? 2;
+  const priorityLabel = PRIORITY_LABEL[priority] ?? `P${priority}`;
+  const borderWidth = isClosed ? 1 : (PRIORITY_BORDER[priority] ?? 2);
+  const nodeOpacity = isClosed ? 1 : (PRIORITY_OPACITY[priority] ?? 0.8);
+
+  return (
+    <div
+      className={`bead-node bead-node--${issue.issue_type || 'task'}${selected ? ' bead-node--selected' : ''}`}
+      style={{
+        '--node-color': typeAccent,
+        '--status-color': statusColor,
+        '--top-border': `${borderWidth}px`,
+        opacity: nodeOpacity,
+        filter: isClosed ? 'saturate(0.2) brightness(0.85)' : undefined,
+      }}
+    >
+      <Handle type="target" position={Position.Top} style={{ opacity: 0, pointerEvents: 'none' }} />
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: 'none' }} />
+
+      {outCount > 0 && (
+        <button
+          className="expand-btn expand-btn--top"
+          onClick={(e) => { e.stopPropagation(); expand(issue.id, 'out'); }}
+          title={`Show ${outCount} dependenc${outCount > 1 ? 'ies' : 'y'}`}
+        >
+          +{outCount}
+        </button>
+      )}
+
+      <div className="bead-node__header">
+        <span className="bead-node__id">
+          <span className="bead-node__type-icon">{icon}</span>
+          {issue.id}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="bead-node__priority">{priorityLabel}</span>
+          {!isLast && (
+            <button
+              className="bead-node__close"
+              onClick={(e) => { e.stopPropagation(); closeNode(issue.id); }}
+              title="Remove node"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="bead-node__title">{issue.title}</div>
+
+      <div className="bead-node__footer">
+        <span className="bead-node__status" style={{ background: statusColor + '22', color: statusColor }}>
+          {issue.status}
+        </span>
+        <button
+          className="bead-node__focus"
+          onClick={(e) => { e.stopPropagation(); focus(issue.id); }}
+        >
+          focus
+        </button>
+      </div>
+
+      {inCount > 0 && (
+        <button
+          className="expand-btn expand-btn--bottom"
+          onClick={(e) => { e.stopPropagation(); expand(issue.id, 'in'); }}
+          title={`Show ${inCount} dependent${inCount > 1 ? 's' : ''}`}
+        >
+          +{inCount}
+        </button>
+      )}
+    </div>
+  );
+}
