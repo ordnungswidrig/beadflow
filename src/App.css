@@ -344,6 +344,19 @@
   border-radius: 2px;
   background: color-mix(in srgb, var(--node-bg) 92%, #e05555 8%);
 }
+/* epic: larger, more prominent */
+.bead-node--epic {
+  width: 320px;
+  min-height: 110px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--node-bg) 88%, #a78bfa 12%);
+  box-shadow: 0 0 0 1px rgba(167,139,250,0.25), 0 4px 20px rgba(167,139,250,0.12);
+}
+.bead-node--epic .bead-node__title {
+  font-size: 0.82em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
 
 .bead-node--selected {
   background: var(--node-bg-selected);

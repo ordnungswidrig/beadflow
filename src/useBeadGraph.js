@@ -11,6 +11,8 @@ import {
 
 const NODE_W = 240;
 const NODE_H = 90;
+const EPIC_W = 320;
+const EPIC_H = 110;
 
 // Find connected components (undirected) among a set of node ids and edges
 function findClusters(ids, edges) {
@@ -277,18 +279,24 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     // If only nodes were removed (no new nodes), just drop them from the sim without relayout
     if (!hasNewNodes && simRef.current) {
       simNodesRef.current = simNodesRef.current.filter((n) => currentIds.has(n.id));
-      setRfNodes(simNodesRef.current.map((n, i) => ({
-        id: n.id,
-        position: { x: n.x - NODE_W / 2, y: n.y - NODE_H / 2 },
-        data: {
-          issue: nodeData[i]?.issue,
-          inCount: nodeData[i]?.inCount ?? 0,
-          outCount: nodeData[i]?.outCount ?? 0,
-          isLast: nodeData[i]?.isLast ?? false,
-          expand, closeNode, focus,
-        },
-        type: 'bead',
-      })));
+      setRfNodes(simNodesRef.current.map((n, i) => {
+        const nd = nodeData[i];
+        const isEpic = nd?.issue?.issue_type === 'epic';
+        const w = isEpic ? EPIC_W : NODE_W;
+        const h = isEpic ? EPIC_H : NODE_H;
+        return {
+          id: n.id,
+          position: { x: n.x - w / 2, y: n.y - h / 2 },
+          data: {
+            issue: nd?.issue,
+            inCount: nd?.inCount ?? 0,
+            outCount: nd?.outCount ?? 0,
+            isLast: nd?.isLast ?? false,
+            expand, closeNode, focus,
+          },
+          type: 'bead',
+        };
+      }));
       return;
     }
 
@@ -331,7 +339,11 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     const sim = forceSimulation(simNodes)
       .force('link', forceLink(links).distance(220).strength(0.7))
       .force('charge', forceManyBody().strength(-500))
-      .force('collide', forceCollide().radius(Math.max(NODE_W, NODE_H) * 0.75))
+      .force('collide', forceCollide((n) => {
+        const nd = nodeData.find((d) => d.id === n.id);
+        const isEpic = nd?.issue?.issue_type === 'epic';
+        return Math.max(isEpic ? EPIC_W : NODE_W, isEpic ? EPIC_H : NODE_H) * 0.75;
+      }))
       .force('center', forceCenter(0, 0))
       // Pull each node toward its cluster center to prevent clusters drifting apart
       .force('cluster', (() => {
@@ -354,20 +366,26 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
       .alphaDecay(0.04)
       .velocityDecay(0.5)
       .on('tick', () => {
-        setRfNodes(simNodesRef.current.map((n, i) => ({
-          id: n.id,
-          position: { x: n.x - NODE_W / 2, y: n.y - NODE_H / 2 },
-          data: {
-            issue: nodeData[i]?.issue,
-            inCount: nodeData[i]?.inCount ?? 0,
-            outCount: nodeData[i]?.outCount ?? 0,
-            isLast: nodeData[i]?.isLast ?? false,
-            expand,
-            closeNode,
-            focus,
-          },
-          type: 'bead',
-        })));
+        setRfNodes(simNodesRef.current.map((n, i) => {
+          const nd = nodeData[i];
+          const isEpic = nd?.issue?.issue_type === 'epic';
+          const w = isEpic ? EPIC_W : NODE_W;
+          const h = isEpic ? EPIC_H : NODE_H;
+          return {
+            id: n.id,
+            position: { x: n.x - w / 2, y: n.y - h / 2 },
+            data: {
+              issue: nd?.issue,
+              inCount: nd?.inCount ?? 0,
+              outCount: nd?.outCount ?? 0,
+              isLast: nd?.isLast ?? false,
+              expand,
+              closeNode,
+              focus,
+            },
+            type: 'bead',
+          };
+        }));
       });
 
     simRef.current = sim;

@@ -8,16 +8,25 @@ const STATUS_COLOR = {
 
 // Per-type accent hue (overrides status color for the top border)
 const TYPE_ACCENT = {
-  bug:     '#e05555',
-  feature: '#a78bfa',
-  task:    '#5b8dee',
+  bug:      '#e05555',
+  feature:  '#a78bfa',
+  task:     '#5b8dee',
+  epic:     '#a78bfa',
+  chore:    '#5b8dee',
+  decision: '#f0a500',
 };
 
 const TYPE_ICON = {
-  bug:     '⬡',
-  feature: '◈',
-  task:    '◻',
+  bug:      '⬡',
+  feature:  '◈',
+  task:     '◻',
+  epic:     '◆',
+  chore:    '◻',
+  decision: '◇',
 };
+
+const EPIC_W = 320;
+const EPIC_H = 110;
 
 const PRIORITY_LABEL = ['P0', 'P1', 'P2', 'P3', 'P4'];
 
@@ -28,17 +37,18 @@ const PRIORITY_OPACITY = [1, 0.92, 0.82, 0.7, 0.55];
 export function BeadNode({ data, selected }) {
   const { issue, inCount, outCount, isLast, onCriticalPath, expand, closeNode, focus } = data;
   const isClosed = issue.status === 'closed';
+  const isEpic = issue.issue_type === 'epic';
   const statusColor = isClosed ? '#555' : (STATUS_COLOR[issue.status] || '#888');
   const typeAccent = isClosed ? '#444' : (TYPE_ACCENT[issue.issue_type] || TYPE_ACCENT.task);
   const icon = TYPE_ICON[issue.issue_type] || '◻';
   const priority = issue.priority ?? 2;
   const priorityLabel = PRIORITY_LABEL[priority] ?? `P${priority}`;
-  const borderWidth = isClosed ? 1 : (PRIORITY_BORDER[priority] ?? 2);
+  const borderWidth = isClosed ? 1 : (isEpic ? Math.max(3, PRIORITY_BORDER[priority] ?? 2) + 1 : (PRIORITY_BORDER[priority] ?? 2));
   const nodeOpacity = isClosed ? 1 : (PRIORITY_OPACITY[priority] ?? 0.8);
 
   return (
     <div
-      className={`bead-node bead-node--${issue.issue_type || 'task'}${selected ? ' bead-node--selected' : ''}${onCriticalPath ? ' bead-node--critical' : ''}`}
+      className={`bead-node bead-node--${issue.issue_type || 'task'}${selected ? ' bead-node--selected' : ''}${onCriticalPath ? ' bead-node--critical' : ''}${isEpic ? ' bead-node--epic' : ''}`}
       style={{
         '--node-color': typeAccent,
         '--status-color': statusColor,
