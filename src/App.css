@@ -282,6 +282,11 @@
   cursor: default;
 }
 
+.toolbar-btn--active {
+  background: rgba(240,165,0,0.15);
+  color: #f0a500 !important;
+}
+
 @media (prefers-color-scheme: light) {
   .toolbar-btn { color: rgba(0,0,0,0.45); }
   .toolbar-btn:hover:not(:disabled) {
@@ -344,6 +349,14 @@
   background: var(--node-bg-selected);
   border-color: var(--node-border-selected);
   box-shadow: 0 0 0 1.5px var(--node-color, #5b8dee);
+}
+
+.bead-node--critical {
+  box-shadow: 0 0 0 1.5px #f0a500, 0 0 12px rgba(240,165,0,0.3);
+}
+
+.bead-node--critical.bead-node--selected {
+  box-shadow: 0 0 0 1.5px #f0a500, 0 0 16px rgba(240,165,0,0.4), 0 0 0 3px var(--node-color);
 }
 
 .bead-node__header {

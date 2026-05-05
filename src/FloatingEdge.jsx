@@ -92,9 +92,9 @@ export function FloatingEdge({ id, source, target, data }) {
         id={id}
         d={path}
         fill="none"
-        strokeWidth={data?.closed ? 0.8 : (PRIORITY_WIDTH[data?.priority ?? 2] ?? 1.5)}
-        stroke={data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task)}
-        strokeDasharray={data?.closed ? '3,4' : (PRIORITY_DASH[data?.issueType] || undefined)}
+        strokeWidth={data?.critical ? 2 : (data?.closed ? 0.8 : (PRIORITY_WIDTH[data?.priority ?? 2] ?? 1.5))}
+        stroke={data?.critical ? '#f0a500' : (data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task))}
+        strokeDasharray={data?.critical ? undefined : (data?.closed ? '3,4' : (PRIORITY_DASH[data?.issueType] || undefined))}
         style={{ pointerEvents: 'none', cursor: 'default' }}
       />
       {/* Arrowhead polygon at tp, pointing inward along -normal */}
@@ -105,7 +105,7 @@ export function FloatingEdge({ id, source, target, data }) {
         const tip = { x: tp.x, y: tp.y };
         const b1  = { x: tp.x + tp.nx * L + px * W, y: tp.y + tp.ny * L + py * W };
         const b2  = { x: tp.x + tp.nx * L - px * W, y: tp.y + tp.ny * L - py * W };
-        const fill = data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task);
+        const fill = data?.critical ? '#f0a500' : (data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task));
         return (
           <polygon
             points={`${tip.x},${tip.y} ${b1.x},${b1.y} ${b2.x},${b2.y}`}

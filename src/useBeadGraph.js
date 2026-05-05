@@ -50,7 +50,7 @@ function buildIndex(issues) {
   return { byId, outgoing, incoming };
 }
 
-export function useBeadGraph(allIssues, setRfNodes) {
+export function useBeadGraph(allIssues, setRfNodes, showCritical = false, selectedId = null) {
   const { byId, outgoing, incoming } = useMemo(
     () => (allIssues.length ? buildIndex(allIssues) : { byId: {}, outgoing: {}, incoming: {} }),
     [allIssues]
@@ -167,22 +167,103 @@ export function useBeadGraph(allIssues, setRfNodes) {
               priority: srcIssue?.priority ?? 2,
               closed: edgeClosed,
               depType: dep.type || 'blocks',
+              critical: false, // set after criticalEdges is computed below
             },
           });
         }
       }
     }
 
+    // Mark critical edges after path is computed (mutate data in place below)
+    // Compute critical path: longest chain through visible DAG
+    // edges go src→tgt (src blocks tgt), so we traverse src→tgt
+    const criticalNodes = new Set();
+    const criticalEdges = new Set();
+    if (ids.length > 1) {
+      // Build adjacency for visible nodes
+      const adj = {}; // id -> [tgt]
+      for (const id of ids) adj[id] = [];
+      for (const e of edges) adj[e.source]?.push(e.target);
+
+      // Build reverse adjacency (tgt -> sources) for tracing back to root
+      const radj = {}; // id -> [src that point to it]
+      for (const id of ids) radj[id] = [];
+      for (const e of edges) radj[e.target]?.push(e.source);
+
+      if (selectedId && visibleSet.has(selectedId)) {
+        // Trace from selectedId back to cluster root via BFS on reverse edges
+        // picking the path with most hops (longest upstream chain)
+        const dist = {}; const prev = {};
+        for (const id of ids) { dist[id] = -Infinity; prev[id] = null; }
+        dist[selectedId] = 0;
+        // BFS upstream
+        const q = [selectedId];
+        const seen = new Set([selectedId]);
+        while (q.length) {
+          const u = q.shift();
+          for (const src of (radj[u] || [])) {
+            if (dist[src] < dist[u] - 1) {
+              dist[src] = dist[u] - 1;
+              prev[src] = u; // src -> u edge
+            }
+            if (!seen.has(src)) { seen.add(src); q.push(src); }
+          }
+        }
+        // Root is the node with the most negative dist (furthest upstream)
+        const root = [...seen].reduce((a, b) => dist[a] <= dist[b] ? a : b);
+        // Trace from root to selectedId
+        let cur = root;
+        while (cur) {
+          criticalNodes.add(cur);
+          if (prev[cur]) criticalEdges.add(`${cur}->${prev[cur]}`);
+          cur = prev[cur];
+        }
+      } else {
+        // No selection: highlight global longest path
+        const dist = {}; const prev = {};
+        for (const id of ids) { dist[id] = 1; prev[id] = null; }
+        const inDeg = {};
+        for (const id of ids) inDeg[id] = 0;
+        for (const e of edges) inDeg[e.target] = (inDeg[e.target] || 0) + 1;
+        const queue = ids.filter((id) => !inDeg[id]);
+        const topo = [];
+        const vis = new Set(queue);
+        while (queue.length) {
+          const u = queue.shift(); topo.push(u);
+          for (const v of (adj[u] || [])) {
+            inDeg[v]--;
+            if (inDeg[v] === 0 && !vis.has(v)) { vis.add(v); queue.push(v); }
+          }
+        }
+        for (const u of topo) {
+          for (const v of (adj[u] || [])) {
+            if (dist[u] + 1 > dist[v]) { dist[v] = dist[u] + 1; prev[v] = u; }
+          }
+        }
+        let endNode = ids.reduce((a, b) => dist[a] >= dist[b] ? a : b);
+        let cur = endNode;
+        while (cur) {
+          criticalNodes.add(cur);
+          if (prev[cur]) criticalEdges.add(`${prev[cur]}->${cur}`);
+          cur = prev[cur];
+        }
+      }
+    }
+
+    // Mark critical edges (only when highlight is enabled)
+    for (const e of edges) e.data.critical = showCritical && criticalEdges.has(e.id);
+
     const nodeData = ids.map((id) => ({
       id,
       issue: byId[id],
+      onCriticalPath: showCritical && criticalNodes.has(id),
       inCount: (incoming[id] || []).filter((n) => !visibleSet.has(n)).length,
       outCount: (outgoing[id] || []).filter((n) => !visibleSet.has(n)).length,
       isLast: ids.length === 1,
     }));
 
     return { edges, nodeData };
-  }, [visibleIds, allIssues, byId, incoming, outgoing]);
+  }, [visibleIds, allIssues, byId, incoming, outgoing, showCritical, selectedId]);
 
   // Run/restart the force simulation whenever the visible set changes
   useEffect(() => {

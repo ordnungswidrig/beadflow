@@ -26,7 +26,7 @@ const PRIORITY_BORDER = [3, 2.5, 2, 1.5, 1];
 const PRIORITY_OPACITY = [1, 0.92, 0.82, 0.7, 0.55];
 
 export function BeadNode({ data, selected }) {
-  const { issue, inCount, outCount, isLast, expand, closeNode, focus } = data;
+  const { issue, inCount, outCount, isLast, onCriticalPath, expand, closeNode, focus } = data;
   const isClosed = issue.status === 'closed';
   const statusColor = isClosed ? '#555' : (STATUS_COLOR[issue.status] || '#888');
   const typeAccent = isClosed ? '#444' : (TYPE_ACCENT[issue.issue_type] || TYPE_ACCENT.task);
@@ -38,7 +38,7 @@ export function BeadNode({ data, selected }) {
 
   return (
     <div
-      className={`bead-node bead-node--${issue.issue_type || 'task'}${selected ? ' bead-node--selected' : ''}`}
+      className={`bead-node bead-node--${issue.issue_type || 'task'}${selected ? ' bead-node--selected' : ''}${onCriticalPath ? ' bead-node--critical' : ''}`}
       style={{
         '--node-color': typeAccent,
         '--status-color': statusColor,

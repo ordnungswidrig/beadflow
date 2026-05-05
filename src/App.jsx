@@ -43,9 +43,10 @@ function Graph({ issues, reload }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState(null);
+  const [showCritical, setShowCritical] = useState(false);
   const { fitView, fitBounds } = useReactFlow();
 
-  const { edges: computedEdges, hideClosed, pruneToSelected, showAll } = useBeadGraph(issues, setNodes);
+  const { edges: computedEdges, hideClosed, pruneToSelected, showAll } = useBeadGraph(issues, setNodes, showCritical, selectedNode?.id);
 
   useEffect(() => {
     setEdges(computedEdges);
@@ -70,6 +71,8 @@ function Graph({ issues, reload }) {
           onPrune={() => pruneToSelected(selectedNode?.id)}
           onShowAll={showAll}
           onReload={reload}
+          showCritical={showCritical}
+          onToggleCritical={() => setShowCritical((v) => !v)}
         />
         <ReactFlow
           nodes={nodes}

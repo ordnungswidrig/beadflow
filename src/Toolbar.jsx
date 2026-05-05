@@ -1,4 +1,4 @@
-export function Toolbar({ selectedId, onHideClosed, onPrune, onShowAll, onReload }) {
+export function Toolbar({ selectedId, onHideClosed, onPrune, onShowAll, onReload, showCritical, onToggleCritical }) {
   return (
     <div className="toolbar">
       <button className="toolbar-btn" onClick={onReload} title="Re-fetch beads.json">
@@ -20,6 +20,14 @@ export function Toolbar({ selectedId, onHideClosed, onPrune, onShowAll, onReload
       <div className="toolbar-sep" />
       <button className="toolbar-btn" onClick={onShowAll} title="Show all nodes">
         show all
+      </button>
+      <div className="toolbar-sep" />
+      <button
+        className={`toolbar-btn${showCritical ? ' toolbar-btn--active' : ''}`}
+        onClick={onToggleCritical}
+        title="Highlight critical path"
+      >
+        critical path
       </button>
     </div>
   );
