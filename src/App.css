@@ -572,6 +572,23 @@
 
 .sb-dep:last-child { border-bottom: none; }
 
+.sb-dep--btn {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+  padding: 4px 6px;
+  margin: 0 -6px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+.sb-dep--btn:hover {
+  background: rgba(91,141,238,0.08);
+}
+.sb-dep--btn:hover .sb-dep__id { color: var(--accent); }
+
 .sb-dep__id {
   font-size: 9px;
   text-transform: uppercase;

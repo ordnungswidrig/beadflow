@@ -46,7 +46,8 @@ function Graph({ issues, reload }) {
   const [showCritical, setShowCritical] = useState(false);
   const { fitView, fitBounds } = useReactFlow();
 
-  const { edges: computedEdges, hideClosed, pruneToSelected, showAll } = useBeadGraph(issues, setNodes, showCritical, selectedNode?.id);
+  const selectedId = selectedNode?.id ?? null;
+  const { edges: computedEdges, hideClosed, pruneToSelected, showAll, focus } = useBeadGraph(issues, setNodes, showCritical, selectedId);
 
   useEffect(() => {
     setEdges(computedEdges);
@@ -58,8 +59,36 @@ function Graph({ issues, reload }) {
     return () => clearTimeout(t);
   }, [nodes.length, fitView]);
 
+  const fitToNeighborhood = useCallback((id, delay = 0) => {
+    const go = () => {
+      // collect id + all visible directly connected nodes
+      const neighborIds = new Set([id]);
+      for (const e of edges) {
+        if (e.source === id) neighborIds.add(e.target);
+        if (e.target === id) neighborIds.add(e.source);
+      }
+      fitView({ nodes: [...neighborIds].map((nid) => ({ id: nid })), duration: 400, padding: 0.15 });
+    };
+    delay ? setTimeout(go, delay) : go();
+  }, [edges, fitView]);
+
   const onNodeClick = useCallback((_e, node) => setSelectedNode(node), []);
+  const onNodeDoubleClick = useCallback((_e, node) => {
+    fitToNeighborhood(node.id);
+  }, [fitToNeighborhood]);
   const onPaneClick = useCallback(() => setSelectedNode(null), []);
+
+  // Keep React Flow's selected state in sync with selectedId when sim is idle
+  useEffect(() => {
+    setNodes((nds) => nds.map((n) => ({ ...n, selected: n.id === selectedId })));
+  }, [selectedId, setNodes]);
+
+  const onFocusId = useCallback((id) => {
+    focus(id);
+    const issue = issues.find((i) => i.id === id);
+    if (issue) setSelectedNode({ id, data: { issue } });
+    fitToNeighborhood(id, 300);
+  }, [focus, issues, fitToNeighborhood]);
 
   return (
     <div className="app">
@@ -82,6 +111,7 @@ function Graph({ issues, reload }) {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
+          onNodeDoubleClick={onNodeDoubleClick}
           onPaneClick={onPaneClick}
           fitView
           colorMode="system"
@@ -102,7 +132,7 @@ function Graph({ issues, reload }) {
           />
         </ReactFlow>
       </div>
-      <Sidebar selectedNode={selectedNode} allIssues={issues} />
+      <Sidebar selectedNode={selectedNode} allIssues={issues} onFocusId={onFocusId} />
     </div>
   );
 }

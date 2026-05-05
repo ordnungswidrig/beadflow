@@ -15,7 +15,7 @@ function Field({ label, children }) {
   );
 }
 
-export function Sidebar({ selectedNode, allIssues }) {
+export function Sidebar({ selectedNode, allIssues, onFocusId }) {
   const issue = selectedNode?.data?.issue;
   const byId = Object.fromEntries((allIssues || []).map((i) => [i.id, i]));
 
@@ -76,10 +76,10 @@ export function Sidebar({ selectedNode, allIssues }) {
           {blockedBy.length > 0 && (
             <Field label={`Blocked by (${blockedBy.length})`}>
               {blockedBy.map((dep) => (
-                <div key={dep.id} className="sb-dep">
+                <button key={dep.id} className="sb-dep sb-dep--btn" onClick={() => onFocusId?.(dep.id)}>
                   <span className="sb-dep__id">{dep.id}</span>
                   <span className="sb-dep__title">{dep.title}</span>
-                </div>
+                </button>
               ))}
             </Field>
           )}
@@ -87,10 +87,10 @@ export function Sidebar({ selectedNode, allIssues }) {
           {blocks.length > 0 && (
             <Field label={`Blocks (${blocks.length})`}>
               {blocks.map((dep) => (
-                <div key={dep.id} className="sb-dep">
+                <button key={dep.id} className="sb-dep sb-dep--btn" onClick={() => onFocusId?.(dep.id)}>
                   <span className="sb-dep__id">{dep.id}</span>
                   <span className="sb-dep__title">{dep.title}</span>
-                </div>
+                </button>
               ))}
             </Field>
           )}

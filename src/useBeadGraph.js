@@ -287,6 +287,7 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
         return {
           id: n.id,
           position: { x: n.x - w / 2, y: n.y - h / 2 },
+          selected: n.id === selectedId,
           data: {
             issue: nd?.issue,
             inCount: nd?.inCount ?? 0,
@@ -374,6 +375,7 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
           return {
             id: n.id,
             position: { x: n.x - w / 2, y: n.y - h / 2 },
+            selected: n.id === selectedId,
             data: {
               issue: nd?.issue,
               inCount: nd?.inCount ?? 0,
@@ -392,5 +394,5 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     return () => sim.stop();
   }, [nodeData, edges, expand, closeNode, focus, setRfNodes]);
 
-  return { edges, hideClosed, pruneToSelected, showAll };
+  return { edges, hideClosed, pruneToSelected, showAll, focus };
 }
