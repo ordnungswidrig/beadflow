@@ -55,26 +55,21 @@ export function FloatingEdge({ id, source, target, data }) {
   const sp = borderPoint(sc, tc);
   const tp = borderPoint(tc, sc);
 
-  // Control point offset: proportional to distance, along the outward normal of each face
   const dist = Math.sqrt((tp.x - sp.x) ** 2 + (tp.y - sp.y) ** 2) || 1;
   const handle = Math.max(60, dist * 0.4);
 
-  // Source control point: depart perpendicular to the source border face
   const cx1 = sp.x + sp.nx * handle;
   const cy1 = sp.y + sp.ny * handle;
-
-  // Target control point: approach from outside along the outward normal
-  // Pull back the endpoint by arrow size so the tip lands exactly on the border
-  const tx = tp.x + tp.nx * ARROW_SIZE;
-  const ty = tp.y + tp.ny * ARROW_SIZE;
   const cx2 = tp.x + tp.nx * handle;
   const cy2 = tp.y + tp.ny * handle;
 
-  const path = `M${sp.x},${sp.y} C${cx1},${cy1} ${cx2},${cy2} ${tx},${ty}`;
+  // Path ends at arrowhead base (L px outside border), tip touches the border
+  const ARROW_L = 9;
+  const path = `M${sp.x},${sp.y} C${cx1},${cy1} ${cx2},${cy2} ${tp.x + tp.nx * ARROW_L},${tp.y + tp.ny * ARROW_L}`;
 
   // Cubic bezier midpoint at t=0.5
-  const mx = (sp.x + 3*cx1 + 3*cx2 + tx) / 8;
-  const my = (sp.y + 3*cy1 + 3*cy2 + ty) / 8;
+  const mx = (sp.x + 3*cx1 + 3*cx2 + tp.x) / 8;
+  const my = (sp.y + 3*cy1 + 3*cy2 + tp.y) / 8;
   const depType = data?.depType;
 
   return (
@@ -85,8 +80,9 @@ export function FloatingEdge({ id, source, target, data }) {
           viewBox="0 0 10 10"
           refX="10"
           refY="5"
-          markerWidth="5"
-          markerHeight="5"
+          markerWidth="8"
+          markerHeight="8"
+          markerUnits="userSpaceOnUse"
           orient="auto"
         >
           <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(150,150,180,0.7)" />
@@ -99,9 +95,25 @@ export function FloatingEdge({ id, source, target, data }) {
         strokeWidth={data?.closed ? 0.8 : (PRIORITY_WIDTH[data?.priority ?? 2] ?? 1.5)}
         stroke={data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task)}
         strokeDasharray={data?.closed ? '3,4' : (PRIORITY_DASH[data?.issueType] || undefined)}
-        markerEnd={`url(#${ARROW_ID})`}
         style={{ pointerEvents: 'none', cursor: 'default' }}
       />
+      {/* Arrowhead polygon at tp, pointing inward along -normal */}
+      {(() => {
+        // Tip touches the border, base extends outward along the normal
+        const px = -tp.ny; const py = tp.nx;  // perpendicular
+        const L = 9; const W = 4;
+        const tip = { x: tp.x, y: tp.y };
+        const b1  = { x: tp.x + tp.nx * L + px * W, y: tp.y + tp.ny * L + py * W };
+        const b2  = { x: tp.x + tp.nx * L - px * W, y: tp.y + tp.ny * L - py * W };
+        const fill = data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task);
+        return (
+          <polygon
+            points={`${tip.x},${tip.y} ${b1.x},${b1.y} ${b2.x},${b2.y}`}
+            fill={fill}
+            style={{ pointerEvents: 'none' }}
+          />
+        );
+      })()}
       {depType && (
         <>
           <rect
