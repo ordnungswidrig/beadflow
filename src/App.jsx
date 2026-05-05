@@ -44,7 +44,7 @@ function Graph({ issues, reload, initialId }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState(null);
   const [showCritical, setShowCritical] = useState(false);
-  const { fitView, getNode, setCenter } = useReactFlow();
+  const { fitView, getNode, setCenter, getViewport } = useReactFlow();
 
   const selectedId = selectedNode?.id ?? null;
   const { edges: computedEdges, hideClosed, pruneToSelected, showAll, focus } = useBeadGraph(issues, setNodes, showCritical, selectedId);
@@ -63,15 +63,19 @@ function Graph({ issues, reload, initialId }) {
     return () => clearTimeout(t);
   }, [nodes.length, fitView]);
 
+  const SIDEBAR_W = 300;
   const fitToNeighborhood = useCallback((id, delay = 0) => {
     const go = () => {
       const node = getNode(id);
       if (!node) return;
       const { width = 240, height = 90 } = node.measured || {};
-      const x = (node.internals?.positionAbsolute?.x ?? node.position.x) + width / 2;
-      const y = (node.internals?.positionAbsolute?.y ?? node.position.y) + height / 2;
+      const zoom = 0.9;
+      const nx = (node.internals?.positionAbsolute?.x ?? node.position.x) + width / 2;
+      const ny = (node.internals?.positionAbsolute?.y ?? node.position.y) + height / 2;
+      // Shift x left by half the sidebar width (in flow coords) so node centers in canvas area
+      const x = nx - (SIDEBAR_W / 2) / zoom;
       programmaticMoveRef.current = true;
-      setCenter(x, y, { zoom: 0.9, duration: 400 });
+      setCenter(x, ny, { zoom, duration: 400 });
       setTimeout(() => { programmaticMoveRef.current = false; }, 600);
     };
     delay ? setTimeout(go, delay) : go();
