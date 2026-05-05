@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -39,12 +39,12 @@ function useAllIssues() {
   return { issues, loading, error, reload };
 }
 
-function Graph({ issues, reload }) {
+function Graph({ issues, reload, initialId }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState(null);
   const [showCritical, setShowCritical] = useState(false);
-  const { fitView, fitBounds } = useReactFlow();
+  const { fitView, getNode, setCenter } = useReactFlow();
 
   const selectedId = selectedNode?.id ?? null;
   const { edges: computedEdges, hideClosed, pruneToSelected, showAll, focus } = useBeadGraph(issues, setNodes, showCritical, selectedId);
@@ -55,28 +55,62 @@ function Graph({ issues, reload }) {
 
   // fitView after nodes settle
   useEffect(() => {
-    const t = setTimeout(() => fitView({ duration: 400, padding: 0.15 }), 600);
+    const t = setTimeout(() => {
+      programmaticMoveRef.current = true;
+      fitView({ duration: 400, padding: 0.15 });
+      setTimeout(() => { programmaticMoveRef.current = false; }, 600);
+    }, 600);
     return () => clearTimeout(t);
   }, [nodes.length, fitView]);
 
   const fitToNeighborhood = useCallback((id, delay = 0) => {
     const go = () => {
-      // collect id + all visible directly connected nodes
-      const neighborIds = new Set([id]);
-      for (const e of edges) {
-        if (e.source === id) neighborIds.add(e.target);
-        if (e.target === id) neighborIds.add(e.source);
-      }
-      fitView({ nodes: [...neighborIds].map((nid) => ({ id: nid })), duration: 400, padding: 0.15 });
+      const node = getNode(id);
+      if (!node) return;
+      const { width = 240, height = 90 } = node.measured || {};
+      const x = (node.internals?.positionAbsolute?.x ?? node.position.x) + width / 2;
+      const y = (node.internals?.positionAbsolute?.y ?? node.position.y) + height / 2;
+      programmaticMoveRef.current = true;
+      setCenter(x, y, { zoom: 0.9, duration: 400 });
+      setTimeout(() => { programmaticMoveRef.current = false; }, 600);
     };
     delay ? setTimeout(go, delay) : go();
-  }, [edges, fitView]);
+  }, [getNode, setCenter]);
+
+  const pushHistory = useCallback((id) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('id', id);
+    const cur = window.history.state;
+    if (cur?.id === id) {
+      // Same node: just normalize (e.g. after panning)
+      window.history.replaceState({ id }, '', url);
+    } else {
+      // If current entry is a panned entry, replace it first so back skips it
+      if (cur?.panned) window.history.replaceState(cur, '', window.location.href);
+      window.history.pushState({ id }, '', url);
+    }
+  }, []);
 
   const onNodeClick = useCallback((_e, node) => setSelectedNode(node), []);
   const onNodeDoubleClick = useCallback((_e, node) => {
     fitToNeighborhood(node.id);
-  }, [fitToNeighborhood]);
+    pushHistory(node.id);
+  }, [fitToNeighborhood, pushHistory]);
   const onPaneClick = useCallback(() => setSelectedNode(null), []);
+
+  // Push a synthetic history entry when the user manually pans/zooms,
+  // so browser "back" restores the last focused node's view.
+  const programmaticMoveRef = useRef(false);
+  const onMoveEnd = useCallback(() => {
+    if (programmaticMoveRef.current) return;
+    const currentId = new URLSearchParams(window.location.search).get('id');
+    if (!currentId) return;
+    if (window.history.state?.panned) {
+      window.history.replaceState({ id: currentId, panned: true }, '', window.location.href);
+    } else if (window.history.state?.id === currentId) {
+      window.history.pushState({ id: currentId, panned: true }, '', window.location.href);
+    }
+  }, []);
 
   // Keep React Flow's selected state in sync with selectedId when sim is idle
   useEffect(() => {
@@ -88,7 +122,35 @@ function Graph({ issues, reload }) {
     const issue = issues.find((i) => i.id === id);
     if (issue) setSelectedNode({ id, data: { issue } });
     fitToNeighborhood(id, 300);
-  }, [focus, issues, fitToNeighborhood]);
+    pushHistory(id);
+  }, [focus, issues, fitToNeighborhood, pushHistory]);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const onPop = () => {
+      const id = new URLSearchParams(window.location.search).get('id');
+      if (!id) { setSelectedNode(null); return; }
+      const issue = issues.find((i) => i.id === id);
+      if (!issue) return;
+      setSelectedNode({ id, data: { issue } });
+      fitToNeighborhood(id, 50);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [issues, focus, fitToNeighborhood]);
+
+  // On initial load with ?id= param, focus that node once issues are ready
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (initializedRef.current || !initialId || issues.length === 0) return;
+    initializedRef.current = true;
+    const issue = issues.find((i) => i.id === initialId);
+    if (issue) {
+      setSelectedNode({ id: initialId, data: { issue } });
+      focus(initialId);
+      fitToNeighborhood(initialId, 800);
+    }
+  }, [initialId, issues, focus, fitToNeighborhood]);
 
   return (
     <div className="app">
@@ -113,6 +175,7 @@ function Graph({ issues, reload }) {
           onNodeClick={onNodeClick}
           onNodeDoubleClick={onNodeDoubleClick}
           onPaneClick={onPaneClick}
+          onMoveEnd={onMoveEnd}
           fitView
           colorMode="system"
           proOptions={{ hideAttribution: false }}
@@ -169,9 +232,11 @@ export default function App() {
     );
   }
 
+  const initialId = new URLSearchParams(window.location.search).get('id');
+
   return (
     <ReactFlowProvider>
-      <Graph issues={issues} reload={reload} />
+      <Graph issues={issues} reload={reload} initialId={initialId} />
     </ReactFlowProvider>
   );
 }
