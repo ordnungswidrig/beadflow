@@ -36,6 +36,13 @@ function useAllIssues() {
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
+  // Auto-reload when server notifies via SSE
+  useEffect(() => {
+    const es = new EventSource('/_events');
+    es.addEventListener('reload', () => reload());
+    return () => es.close();
+  }, [reload]);
+
   return { issues, loading, error, reload };
 }
 

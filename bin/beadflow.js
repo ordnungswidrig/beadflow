@@ -29,7 +29,6 @@ const MIME = {
 function exportBeads() {
   try {
     const result = execSync('bd export', { cwd: process.cwd(), encoding: 'utf8' });
-    // bd export outputs JSONL — convert to JSON array
     const lines = result.trim().split('\n').filter(Boolean);
     const issues = lines.map((l) => JSON.parse(l));
     return JSON.stringify(issues);
@@ -39,9 +38,48 @@ function exportBeads() {
   }
 }
 
+// SSE clients waiting for reload notifications
+const sseClients = new Set();
+
+function notifyClients() {
+  for (const res of sseClients) {
+    res.write('event: reload\ndata: {}\n\n');
+  }
+}
+
+// Watch .beads/issues.jsonl for changes
+function watchBeads() {
+  const beadsDir = path.join(process.cwd(), '.beads');
+  const watchFile = path.join(beadsDir, 'issues.jsonl');
+  if (!fs.existsSync(watchFile)) return;
+
+  let debounce = null;
+  fs.watch(watchFile, () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      console.log('[beadflow] beads changed — notifying clients');
+      notifyClients();
+    }, 300);
+  });
+  console.log('[beadflow] watching .beads/issues.jsonl for changes');
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const pathname = url.pathname;
+
+  // SSE endpoint for live reload
+  if (pathname === '/_events') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+    res.write(':\n\n'); // initial comment to open stream
+    sseClients.add(res);
+    req.on('close', () => sseClients.delete(res));
+    return;
+  }
 
   // Serve beads.json dynamically from bd export
   if (pathname === '/beads.json') {
@@ -76,4 +114,5 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   const url = `http://localhost:${PORT}`;
   console.log(`\n  beadflow  →  ${url}\n`);
+  watchBeads();
 });

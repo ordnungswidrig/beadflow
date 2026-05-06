@@ -602,3 +602,35 @@
   color: var(--text-primary);
   line-height: 1.35;
 }
+
+.sb-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--sidebar-border);
+  margin-top: 4px;
+}
+
+.sb-meta__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.sb-meta__key {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sb-meta__val {
+  font-size: 10px;
+  color: var(--text-primary);
+  opacity: 0.75;
+  text-align: right;
+}

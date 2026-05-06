@@ -15,6 +15,12 @@ function Field({ label, children }) {
   );
 }
 
+function fmtDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 export function Sidebar({ selectedNode, allIssues, onFocusId }) {
   const issue = selectedNode?.data?.issue;
   const byId = Object.fromEntries((allIssues || []).map((i) => [i.id, i]));
@@ -65,11 +71,38 @@ export function Sidebar({ selectedNode, allIssues, onFocusId }) {
             <span className="sb-badge sb-badge--neutral">
               P{issue.priority} · {PRIORITY_LABEL[issue.priority] ?? ''}
             </span>
+            {issue.issue_type && (
+              <span className="sb-badge sb-badge--neutral">{issue.issue_type}</span>
+            )}
           </div>
 
           {issue.description && (
             <Field label="Description">
               <p className="sb-desc">{issue.description}</p>
+            </Field>
+          )}
+
+          {issue.acceptance_criteria && (
+            <Field label="Acceptance Criteria">
+              <p className="sb-desc">{issue.acceptance_criteria}</p>
+            </Field>
+          )}
+
+          {issue.notes && (
+            <Field label="Notes">
+              <p className="sb-desc">{issue.notes}</p>
+            </Field>
+          )}
+
+          {issue.design && (
+            <Field label="Design">
+              <p className="sb-desc">{issue.design}</p>
+            </Field>
+          )}
+
+          {issue.close_reason && (
+            <Field label="Close Reason">
+              <p className="sb-desc">{issue.close_reason}</p>
             </Field>
           )}
 
@@ -95,11 +128,38 @@ export function Sidebar({ selectedNode, allIssues, onFocusId }) {
             </Field>
           )}
 
-          {issue.notes && (
-            <Field label="Notes">
-              <p className="sb-desc">{issue.notes}</p>
-            </Field>
-          )}
+          <div className="sb-meta">
+            {issue.assignee && (
+              <div className="sb-meta__row">
+                <span className="sb-meta__key">Assignee</span>
+                <span className="sb-meta__val">{issue.assignee}</span>
+              </div>
+            )}
+            {issue.created_by && (
+              <div className="sb-meta__row">
+                <span className="sb-meta__key">Created by</span>
+                <span className="sb-meta__val">{issue.created_by}</span>
+              </div>
+            )}
+            {issue.created_at && (
+              <div className="sb-meta__row">
+                <span className="sb-meta__key">Created</span>
+                <span className="sb-meta__val">{fmtDate(issue.created_at)}</span>
+              </div>
+            )}
+            {issue.started_at && (
+              <div className="sb-meta__row">
+                <span className="sb-meta__key">Started</span>
+                <span className="sb-meta__val">{fmtDate(issue.started_at)}</span>
+              </div>
+            )}
+            {issue.closed_at && (
+              <div className="sb-meta__row">
+                <span className="sb-meta__key">Closed</span>
+                <span className="sb-meta__val">{fmtDate(issue.closed_at)}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </aside>
