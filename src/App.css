@@ -428,20 +428,31 @@
   font-weight: 500;
 }
 
-.bead-node__focus {
+.bead-node__actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  background: rgba(0,0,0,0.08);
+  border-radius: 4px;
+  padding: 1px 2px;
+}
+
+.bead-node__action-btn {
   font-size: 9px;
   font-family: var(--font);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--node-action);
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 4px;
-  transition: color 0.15s;
+  padding: 2px 5px;
+  border-radius: 3px;
+  transition: background 0.1s, color 0.1s;
+  line-height: 1.4;
 }
 
-.bead-node__focus:hover {
+.bead-node__action-btn:hover {
+  background: rgba(255,255,255,0.12);
   color: var(--node-action-hover);
 }
 
@@ -468,8 +479,20 @@
 }
 
 .expand-btn:hover { opacity: 1; }
+.expand-btn--secondary { background: rgba(120,120,140,0.6); }
 .expand-btn--top { top: -14px; }
 .expand-btn--bottom { bottom: -14px; }
+.expand-btn--left {
+  left: auto;
+  right: calc(100% + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.expand-btn--right {
+  left: calc(100% + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+}
 
 /* close node button */
 

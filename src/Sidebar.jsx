@@ -21,16 +21,25 @@ function fmtDate(iso) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function Sidebar({ selectedNode, allIssues, onFocusId }) {
+export function Sidebar({ selectedNode, allIssues, onFocusId, onAddVisible }) {
   const issue = selectedNode?.data?.issue;
   const byId = Object.fromEntries((allIssues || []).map((i) => [i.id, i]));
 
   const deps = Array.isArray(issue?.dependencies) ? issue.dependencies : [];
-  const blockedBy = deps.map((d) => byId[d.depends_on_id]).filter(Boolean);
+  const blockedBy = deps
+    .filter((d) => d.type !== 'parent-child')
+    .map((d) => byId[d.depends_on_id])
+    .filter(Boolean);
   const blocks = allIssues
     ? allIssues.filter((i) =>
         Array.isArray(i.dependencies) &&
-        i.dependencies.some((d) => d.depends_on_id === issue?.id)
+        i.dependencies.some((d) => d.type !== 'parent-child' && d.depends_on_id === issue?.id)
+      )
+    : [];
+  const children = allIssues
+    ? allIssues.filter((i) =>
+        Array.isArray(i.dependencies) &&
+        i.dependencies.some((d) => d.type === 'parent-child' && d.depends_on_id === issue?.id)
       )
     : [];
 
@@ -123,6 +132,21 @@ export function Sidebar({ selectedNode, allIssues, onFocusId }) {
                 <button key={dep.id} className="sb-dep sb-dep--btn" onClick={() => onFocusId?.(dep.id)}>
                   <span className="sb-dep__id">{dep.id}</span>
                   <span className="sb-dep__title">{dep.title}</span>
+                </button>
+              ))}
+            </Field>
+          )}
+
+          {children.length > 0 && (
+            <Field label={`Children (${children.length})`}>
+              {children.map((child) => (
+                <button
+                  key={child.id}
+                  className="sb-dep sb-dep--btn"
+                  onClick={() => { onAddVisible?.(child.id); onFocusId?.(child.id); }}
+                >
+                  <span className="sb-dep__id">{child.id}</span>
+                  <span className="sb-dep__title">{child.title}</span>
                 </button>
               ))}
             </Field>
