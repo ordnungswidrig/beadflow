@@ -88,33 +88,46 @@ export function FloatingEdge({ id, source, target, data }) {
           <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(150,150,180,0.7)" />
         </marker>
       </defs>
-      <path
-        id={id}
-        d={path}
-        fill="none"
-        strokeWidth={data?.critical ? 2 : (data?.closed ? 0.8 : (PRIORITY_WIDTH[data?.priority ?? 2] ?? 1.5))}
-        stroke={data?.critical ? '#f0a500' : (data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task))}
-        strokeDasharray={data?.critical ? undefined : (data?.closed ? '3,4' : (PRIORITY_DASH[data?.issueType] || undefined))}
-        style={{ pointerEvents: 'none', cursor: 'default' }}
-      />
-      {/* Arrowhead polygon at tp, pointing inward along -normal */}
-      {(() => {
-        // Tip touches the border, base extends outward along the normal
-        const px = -tp.ny; const py = tp.nx;  // perpendicular
-        const L = 9; const W = 4;
-        const tip = { x: tp.x, y: tp.y };
-        const b1  = { x: tp.x + tp.nx * L + px * W, y: tp.y + tp.ny * L + py * W };
-        const b2  = { x: tp.x + tp.nx * L - px * W, y: tp.y + tp.ny * L - py * W };
-        const fill = data?.critical ? '#f0a500' : (data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task));
-        return (
-          <polygon
-            points={`${tip.x},${tip.y} ${b1.x},${b1.y} ${b2.x},${b2.y}`}
-            fill={fill}
-            style={{ pointerEvents: 'none' }}
+      {data?.depType === 'parent-child' ? (
+        <path
+          id={id}
+          d={path}
+          fill="none"
+          strokeWidth={2}
+          stroke={data?.closed ? 'rgba(120,120,120,0.25)' : 'rgba(150,150,220,0.45)'}
+          strokeDasharray="3,6"
+          style={{ pointerEvents: 'none', cursor: 'default' }}
+        />
+      ) : (
+        <>
+          <path
+            id={id}
+            d={path}
+            fill="none"
+            strokeWidth={data?.critical ? 2 : (data?.closed ? 0.8 : (PRIORITY_WIDTH[data?.priority ?? 2] ?? 1.5))}
+            stroke={data?.critical ? '#f0a500' : (data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task))}
+            strokeDasharray={data?.critical ? undefined : (data?.closed ? '3,4' : (PRIORITY_DASH[data?.issueType] || undefined))}
+            style={{ pointerEvents: 'none', cursor: 'default' }}
           />
-        );
-      })()}
-      {depType && (
+          {/* Arrowhead polygon at tp, pointing inward along -normal */}
+          {(() => {
+            const px = -tp.ny; const py = tp.nx;
+            const L = 9; const W = 4;
+            const tip = { x: tp.x, y: tp.y };
+            const b1  = { x: tp.x + tp.nx * L + px * W, y: tp.y + tp.ny * L + py * W };
+            const b2  = { x: tp.x + tp.nx * L - px * W, y: tp.y + tp.ny * L - py * W };
+            const fill = data?.critical ? '#f0a500' : (data?.closed ? 'rgba(120,120,120,0.2)' : (TYPE_STROKE[data?.issueType] || TYPE_STROKE.task));
+            return (
+              <polygon
+                points={`${tip.x},${tip.y} ${b1.x},${b1.y} ${b2.x},${b2.y}`}
+                fill={fill}
+                style={{ pointerEvents: 'none' }}
+              />
+            );
+          })()}
+        </>
+      )}
+      {depType && depType !== 'parent-child' && (
         <>
           <rect
             x={mx - 20} y={my - 8}
