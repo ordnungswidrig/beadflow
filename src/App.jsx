@@ -53,7 +53,7 @@ function Graph({ issues, reload, initialId }) {
   const { fitView, getNode, setCenter, getViewport } = useReactFlow();
 
   const selectedId = selectedNode?.id ?? null;
-  const { edges: computedEdges, hideClosed, pruneToSelected, showAll, focus, addVisible, expandRelated } = useBeadGraph(issues, setNodes, showCritical, selectedId);
+  const { edges: computedEdges, hideClosed, pruneToSelected, showAll, focus, addVisible, expandRelated, onNodeDrag, onNodeDragStop } = useBeadGraph(issues, setNodes, showCritical, selectedId);
 
 
   useEffect(() => {
@@ -190,6 +190,8 @@ function Graph({ issues, reload, initialId }) {
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
           onNodeDoubleClick={onNodeDoubleClick}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
           onPaneClick={onPaneClick}
           onMoveEnd={onMoveEnd}
           fitView

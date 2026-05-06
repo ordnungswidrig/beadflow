@@ -518,5 +518,28 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     return () => sim.stop();
   }, [nodeData, edges, expand, closeNode, focus, expandRelated, expandChildren, expandParent, pruneToSelected, setRfNodes]);
 
-  return { edges, hideClosed, pruneToSelected, showAll, focus, addVisible, expandRelated };
+  const onNodeDrag = useCallback((_e, rfNode) => {
+    const sim = simRef.current;
+    if (!sim) return;
+    const sn = simNodesRef.current.find((n) => n.id === rfNode.id);
+    if (!sn) return;
+    const { width = NODE_W, height = NODE_H } = rfNode.measured || {};
+    // Pin to center of node in sim coords
+    sn.fx = rfNode.position.x + width / 2;
+    sn.fy = rfNode.position.y + height / 2;
+    // Reheat gently so neighbors adjust without flying away
+    sim.alpha(Math.max(sim.alpha(), 0.15)).restart();
+  }, []);
+
+  const onNodeDragStop = useCallback((_e, rfNode) => {
+    const sim = simRef.current;
+    if (!sim) return;
+    const sn = simNodesRef.current.find((n) => n.id === rfNode.id);
+    if (!sn) return;
+    // Unpin — let sim cool naturally from current position
+    sn.fx = null;
+    sn.fy = null;
+  }, []);
+
+  return { edges, hideClosed, pruneToSelected, showAll, focus, addVisible, expandRelated, onNodeDrag, onNodeDragStop };
 }
