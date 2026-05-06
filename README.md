@@ -2,6 +2,8 @@
 
 A graph-based knowledge browser. Navigate your beads (notes/issues) as an interactive force-directed graph with a detail sidebar.
 
+![beadflow screenshot](public/beadflow-example.png)
+
 ## Features
 
 - Force-directed graph visualization of bead relationships
