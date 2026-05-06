@@ -31,18 +31,25 @@ function findClusters(ids, edges) {
   return Object.values(clusters);
 }
 
+// dep shape from bd export: {issue_id, depends_on_id, type}
+// type='parent-child' = epic membership, not a blocking edge
+function isBlockingDep(dep) {
+  return dep.type !== 'parent-child';
+}
+
 function buildIndex(issues) {
   const byId = {};
   for (const issue of issues) byId[issue.id] = issue;
-  const outgoing = {}; // id -> [ids this depends on]
-  const incoming = {}; // id -> [ids that depend on this]
+  const outgoing = {}; // id -> [ids this depends on (blockers)]
+  const incoming = {}; // id -> [ids blocked by this]
   for (const issue of issues) {
     outgoing[issue.id] = outgoing[issue.id] || [];
     incoming[issue.id] = incoming[issue.id] || [];
     if (!Array.isArray(issue.dependencies)) continue;
     for (const dep of issue.dependencies) {
-      const src = dep.depends_on_id;
-      const tgt = dep.issue_id;
+      if (!isBlockingDep(dep)) continue;
+      const src = dep.depends_on_id; // blocker
+      const tgt = dep.issue_id;      // blocked
       outgoing[tgt] = outgoing[tgt] || [];
       incoming[src] = incoming[src] || [];
       outgoing[tgt].push(src);
@@ -76,27 +83,12 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
 
   useEffect(() => {
     if (!initialized && allIssues.length > 0) {
-      const byId = Object.fromEntries(allIssues.map((i) => [i.id, i]));
-
-      // Roots: no dependencies of their own
-      const roots = allIssues.filter(
-        (i) => !Array.isArray(i.dependencies) || i.dependencies.length === 0
-      );
-      const seed = roots.length > 0 ? roots : [allIssues[0]];
-      const visible = new Set(seed.map((i) => i.id));
-
-      // Expand each root into its open dependents (incoming[id] = dependents)
-      for (const root of seed) {
-        for (const dependentId of (incoming[root.id] || [])) {
-          const dep = byId[dependentId];
-          if (dep && dep.status !== 'closed') visible.add(dependentId);
-        }
-      }
-
+      const visible = new Set(allIssues.filter((i) => i.status !== 'closed').map((i) => i.id));
+      if (visible.size === 0) allIssues.forEach((i) => visible.add(i.id));
       setVisibleIds(visible);
       setInitialized(true);
     }
-  }, [allIssues, initialized, incoming]);
+  }, [allIssues, initialized]);
 
   const expand = useCallback((id, direction) => {
     setVisibleIds((prev) => {
@@ -116,12 +108,15 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     });
   }, []);
 
-  // Focus: center on node, expand all 1st-level connections both directions
+  // Focus: center on node, expand all 1st-level connections both directions (including closed)
   const focus = useCallback((id) => {
-    const next = new Set([id]);
-    for (const n of (incoming[id] || [])) next.add(n);
-    for (const n of (outgoing[id] || [])) next.add(n);
-    setVisibleIds(next);
+    setVisibleIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      for (const n of (incoming[id] || [])) next.add(n);
+      for (const n of (outgoing[id] || [])) next.add(n);
+      return next;
+    });
   }, [incoming, outgoing]);
 
   const hideClosed = useCallback(() => {
@@ -133,15 +128,79 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
 
   const pruneToSelected = useCallback((selectedId) => {
     if (!selectedId) return;
-    const next = new Set([selectedId]);
-    for (const n of (incoming[selectedId] || [])) next.add(n);
-    for (const n of (outgoing[selectedId] || [])) next.add(n);
-    setVisibleIds(next);
-  }, [incoming, outgoing]);
+    setVisibleIds((prev) => {
+      const next = new Set(prev);
+      // blocking neighbors
+      const neighbors = new Set([...(incoming[selectedId] || []), ...(outgoing[selectedId] || [])]);
+      // parent-child neighbors
+      for (const issue of allIssues) {
+        for (const dep of (issue.dependencies || [])) {
+          if (dep.type !== 'parent-child') continue;
+          if (dep.depends_on_id === selectedId) neighbors.add(issue.id);
+          if (issue.id === selectedId) neighbors.add(dep.depends_on_id);
+        }
+      }
+      for (const n of neighbors) {
+        if (byId[n]?.status === 'closed') next.delete(n);
+      }
+      return next;
+    });
+  }, [incoming, outgoing, byId, allIssues]);
 
   const showAll = useCallback(() => {
     setVisibleIds(new Set(allIssues.map((i) => i.id)));
   }, [allIssues]);
+
+  const addVisible = useCallback((id) => {
+    setVisibleIds((prev) => new Set([...prev, id]));
+  }, []);
+
+  const expandChildren = useCallback((id, closedOnly = false) => {
+    setVisibleIds((prev) => {
+      const next = new Set(prev);
+      for (const issue of allIssues) {
+        for (const dep of (issue.dependencies || [])) {
+          if (dep.type === 'parent-child' && dep.depends_on_id === id) {
+            if (!closedOnly || issue.status === 'closed') next.add(issue.id);
+          }
+        }
+      }
+      return next;
+    });
+  }, [allIssues]);
+
+  const expandParent = useCallback((id) => {
+    setVisibleIds((prev) => {
+      const next = new Set(prev);
+      for (const issue of allIssues) {
+        for (const dep of (issue.dependencies || [])) {
+          if (dep.type === 'parent-child' && dep.issue_id === id) next.add(dep.depends_on_id);
+        }
+      }
+      return next;
+    });
+  }, [allIssues]);
+
+  // Expand all neighbors of a node including parent-child relations
+  const expandRelated = useCallback((id) => {
+    if (!id) return;
+    setVisibleIds((prev) => {
+      const next = new Set(prev);
+      // blocking edges (already in incoming/outgoing)
+      for (const n of (incoming[id] || [])) next.add(n);
+      for (const n of (outgoing[id] || [])) next.add(n);
+      // parent-child: find all issues where dep.depends_on_id === id or issue.id === id
+      for (const issue of allIssues) {
+        for (const dep of (issue.dependencies || [])) {
+          if (dep.type === 'parent-child') {
+            if (dep.depends_on_id === id) next.add(issue.id); // child of id
+            if (issue.id === id) next.add(dep.depends_on_id); // parent of id
+          }
+        }
+      }
+      return next;
+    });
+  }, [incoming, outgoing, allIssues]);
 
   // Recompute edges whenever visibleIds changes
   const { edges, nodeData } = useMemo(() => {
@@ -158,10 +217,16 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
         const key = `${src}->${tgt}`;
         if (seenEdges.has(key)) continue;
         seenEdges.add(key);
-        if (visibleSet.has(src) && visibleSet.has(tgt)) {
-          const srcIssue = byId[src];
-          const tgtIssue = byId[tgt];
-          const edgeClosed = srcIssue?.status === 'closed' && tgtIssue?.status === 'closed';
+        if (!visibleSet.has(src) || !visibleSet.has(tgt)) continue;
+        const srcIssue = byId[src];
+        const tgtIssue = byId[tgt];
+        const edgeClosed = srcIssue?.status === 'closed' && tgtIssue?.status === 'closed';
+        if (dep.type === 'parent-child') {
+          edges.push({
+            id: key, source: src, target: tgt, type: 'floating',
+            data: { depType: 'parent-child', closed: edgeClosed, critical: false },
+          });
+        } else {
           edges.push({
             id: key, source: src, target: tgt, type: 'floating',
             data: {
@@ -169,7 +234,7 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
               priority: srcIssue?.priority ?? 2,
               closed: edgeClosed,
               depType: dep.type || 'blocks',
-              critical: false, // set after criticalEdges is computed below
+              critical: false,
             },
           });
         }
@@ -255,12 +320,38 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     // Mark critical edges (only when highlight is enabled)
     for (const e of edges) e.data.critical = showCritical && criticalEdges.has(e.id);
 
+    // Count hidden parent-child neighbors per node
+    const hiddenChildOpen = {};   // epicId -> count of hidden open children
+    const hiddenChildClosed = {}; // epicId -> count of hidden closed children
+    const hiddenParent = {};      // childId -> 1 if parent is hidden
+    for (const issue of allIssues) {
+      for (const dep of (issue.dependencies || [])) {
+        if (dep.type !== 'parent-child') continue;
+        const parent = dep.depends_on_id;
+        const child = dep.issue_id;
+        if (visibleSet.has(parent) && !visibleSet.has(child)) {
+          const childIssue = byId[child];
+          if (childIssue?.status === 'closed') {
+            hiddenChildClosed[parent] = (hiddenChildClosed[parent] || 0) + 1;
+          } else {
+            hiddenChildOpen[parent] = (hiddenChildOpen[parent] || 0) + 1;
+          }
+        }
+        if (visibleSet.has(child) && !visibleSet.has(parent)) {
+          hiddenParent[child] = (hiddenParent[child] || 0) + 1;
+        }
+      }
+    }
+
     const nodeData = ids.map((id) => ({
       id,
       issue: byId[id],
       onCriticalPath: showCritical && criticalNodes.has(id),
       inCount: (incoming[id] || []).filter((n) => !visibleSet.has(n)).length,
       outCount: (outgoing[id] || []).filter((n) => !visibleSet.has(n)).length,
+      childOpenCount: hiddenChildOpen[id] || 0,
+      childClosedCount: hiddenChildClosed[id] || 0,
+      parentCount: hiddenParent[id] || 0,
       isLast: ids.length === 1,
     }));
 
@@ -292,8 +383,11 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
             issue: nd?.issue,
             inCount: nd?.inCount ?? 0,
             outCount: nd?.outCount ?? 0,
+            childOpenCount: nd?.childOpenCount ?? 0,
+            childClosedCount: nd?.childClosedCount ?? 0,
+            parentCount: nd?.parentCount ?? 0,
             isLast: nd?.isLast ?? false,
-            expand, closeNode, focus,
+            expand, closeNode, focus, expandRelated, expandChildren, expandParent, pruneNode: pruneToSelected,
           },
           type: 'bead',
         };
@@ -404,10 +498,16 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
               issue: nd?.issue,
               inCount: nd?.inCount ?? 0,
               outCount: nd?.outCount ?? 0,
+              childCount: nd?.childCount ?? 0,
+              parentCount: nd?.parentCount ?? 0,
               isLast: nd?.isLast ?? false,
               expand,
               closeNode,
               focus,
+              expandRelated,
+              expandChildren,
+              expandParent,
+              pruneNode: pruneToSelected,
             },
             type: 'bead',
           };
@@ -416,7 +516,7 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
 
     simRef.current = sim;
     return () => sim.stop();
-  }, [nodeData, edges, expand, closeNode, focus, setRfNodes]);
+  }, [nodeData, edges, expand, closeNode, focus, expandRelated, expandChildren, expandParent, pruneToSelected, setRfNodes]);
 
-  return { edges, hideClosed, pruneToSelected, showAll, focus };
+  return { edges, hideClosed, pruneToSelected, showAll, focus, addVisible, expandRelated };
 }
