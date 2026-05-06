@@ -1,4 +1,4 @@
-export function Toolbar({ selectedId, onHideClosed, onPrune, onShowAll, onReload, showCritical, onToggleCritical }) {
+export function Toolbar({ selectedId, onHideClosed, onPrune, onShowAll, onReload, showCritical, onToggleCritical, onExpandRelated }) {
   return (
     <div className="toolbar">
       <button className="toolbar-btn" onClick={onReload} title="Re-fetch beads.json">
@@ -7,6 +7,15 @@ export function Toolbar({ selectedId, onHideClosed, onPrune, onShowAll, onReload
       <div className="toolbar-sep" />
       <button className="toolbar-btn" onClick={onHideClosed} title="Hide all closed nodes">
         hide closed
+      </button>
+      <div className="toolbar-sep" />
+      <button
+        className="toolbar-btn"
+        onClick={onExpandRelated}
+        disabled={!selectedId}
+        title={selectedId ? 'Show all related beads (children, parents, blockers)' : 'Select a node first'}
+      >
+        expand related
       </button>
       <div className="toolbar-sep" />
       <button

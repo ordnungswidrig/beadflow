@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -16,7 +16,6 @@ import { FloatingEdge, ArrowMarkerDef } from './FloatingEdge';
 import { Sidebar } from './Sidebar';
 import { Toolbar } from './Toolbar';
 import { useBeadGraph } from './useBeadGraph';
-
 const nodeTypes = { bead: BeadNode };
 const edgeTypes = { floating: FloatingEdge };
 
@@ -54,14 +53,18 @@ function Graph({ issues, reload, initialId }) {
   const { fitView, getNode, setCenter, getViewport } = useReactFlow();
 
   const selectedId = selectedNode?.id ?? null;
-  const { edges: computedEdges, hideClosed, pruneToSelected, showAll, focus } = useBeadGraph(issues, setNodes, showCritical, selectedId);
+  const { edges: computedEdges, hideClosed, pruneToSelected, showAll, focus, addVisible, expandRelated } = useBeadGraph(issues, setNodes, showCritical, selectedId);
+
 
   useEffect(() => {
     setEdges(computedEdges);
   }, [computedEdges, setEdges]);
 
-  // fitView after nodes settle
+  // fitView only on initial load
+  const didInitialFitRef = useRef(false);
   useEffect(() => {
+    if (didInitialFitRef.current || nodes.length === 0) return;
+    didInitialFitRef.current = true;
     const t = setTimeout(() => {
       programmaticMoveRef.current = true;
       fitView({ duration: 400, padding: 0.15 });
@@ -104,9 +107,10 @@ function Graph({ issues, reload, initialId }) {
 
   const onNodeClick = useCallback((_e, node) => setSelectedNode(node), []);
   const onNodeDoubleClick = useCallback((_e, node) => {
-    fitToNeighborhood(node.id);
+    focus(node.id); // additive: reveals neighbors without hiding anything
+    fitToNeighborhood(node.id, 50);
     pushHistory(node.id);
-  }, [fitToNeighborhood, pushHistory]);
+  }, [focus, fitToNeighborhood, pushHistory]);
   const onPaneClick = useCallback(() => setSelectedNode(null), []);
 
   // Push a synthetic history entry when the user manually pans/zooms,
@@ -175,6 +179,7 @@ function Graph({ issues, reload, initialId }) {
           onReload={reload}
           showCritical={showCritical}
           onToggleCritical={() => setShowCritical((v) => !v)}
+          onExpandRelated={() => expandRelated(selectedNode?.id)}
         />
         <ReactFlow
           nodes={nodes}
@@ -206,7 +211,7 @@ function Graph({ issues, reload, initialId }) {
           />
         </ReactFlow>
       </div>
-      <Sidebar selectedNode={selectedNode} allIssues={issues} onFocusId={onFocusId} />
+      <Sidebar selectedNode={selectedNode} allIssues={issues} onFocusId={onFocusId} onAddVisible={addVisible} />
     </div>
   );
 }

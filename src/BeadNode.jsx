@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 
 const STATUS_COLOR = {
@@ -35,7 +36,8 @@ const PRIORITY_BORDER = [3, 2.5, 2, 1.5, 1];
 const PRIORITY_OPACITY = [1, 0.92, 0.82, 0.7, 0.55];
 
 export function BeadNode({ data, selected }) {
-  const { issue, inCount, outCount, isLast, onCriticalPath, expand, closeNode, focus } = data;
+  const { issue, inCount, outCount, childOpenCount, childClosedCount, parentCount, isLast, onCriticalPath, expand, closeNode, focus, expandRelated, expandChildren, expandParent, pruneNode } = data;
+  const [openChildrenExpanded, setOpenChildrenExpanded] = useState(false);
   const isClosed = issue.status === 'closed';
   const isEpic = issue.issue_type === 'epic';
   const statusColor = isClosed ? '#555' : (STATUS_COLOR[issue.status] || '#888');
@@ -70,6 +72,38 @@ export function BeadNode({ data, selected }) {
         </button>
       )}
 
+      {parentCount > 0 && (
+        <button
+          className="expand-btn expand-btn--left"
+          onClick={(e) => { e.stopPropagation(); expandParent(issue.id); }}
+          title="Show parent epic"
+        >
+          +{parentCount}
+        </button>
+      )}
+
+      {(childOpenCount > 0 || (openChildrenExpanded && childClosedCount > 0)) && (
+        <button
+          className={`expand-btn expand-btn--right${openChildrenExpanded ? ' expand-btn--secondary' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!openChildrenExpanded && childOpenCount > 0) {
+              expandChildren(issue.id, false);
+              setOpenChildrenExpanded(true);
+            } else {
+              expandChildren(issue.id, true);
+            }
+          }}
+          title={openChildrenExpanded
+            ? `Show ${childClosedCount} closed child${childClosedCount !== 1 ? 'ren' : ''}`
+            : `Show ${childOpenCount} open${childClosedCount > 0 ? ` / ${childClosedCount} closed` : ''} child${childOpenCount + childClosedCount !== 1 ? 'ren' : ''}`}
+        >
+          {openChildrenExpanded
+            ? `+${childClosedCount}`
+            : childClosedCount > 0 ? `+${childOpenCount}/${childClosedCount}` : `+${childOpenCount}`}
+        </button>
+      )}
+
       <div className="bead-node__header">
         <span className="bead-node__id">
           <span className="bead-node__type-icon">{icon}</span>
@@ -95,12 +129,17 @@ export function BeadNode({ data, selected }) {
         <span className="bead-node__status" style={{ background: statusColor + '22', color: statusColor }}>
           {issue.status}
         </span>
-        <button
-          className="bead-node__focus"
-          onClick={(e) => { e.stopPropagation(); focus(issue.id); }}
-        >
-          focus
-        </button>
+        <div className="bead-node__actions">
+          {!isLast && (
+            <button
+              className="bead-node__action-btn"
+              onClick={(e) => { e.stopPropagation(); pruneNode(issue.id); }}
+              title="Hide closed neighbors"
+            >
+              ⊙
+            </button>
+          )}
+        </div>
       </div>
 
       {inCount > 0 && (
