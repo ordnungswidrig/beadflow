@@ -2,8 +2,8 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, '..', 'dist');
@@ -26,17 +26,6 @@ const MIME = {
   '.woff':  'font/woff',
 };
 
-function exportBeads() {
-  try {
-    const result = execSync('bd export', { cwd: process.cwd(), encoding: 'utf8' });
-    const lines = result.trim().split('\n').filter(Boolean);
-    const issues = lines.map((l) => JSON.parse(l));
-    return JSON.stringify(issues);
-  } catch (e) {
-    console.error('[beadflow] bd export failed:', e.message);
-    return '[]';
-  }
-}
 
 // SSE clients waiting for reload notifications
 const sseClients = new Set();
@@ -81,11 +70,31 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Serve beads.json dynamically from bd export
+  // Serve beads.json by streaming bd export and wrapping JSONL into a JSON array
   if (pathname === '/beads.json') {
-    const data = exportBeads();
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(data);
+    const bd = spawn('bd', ['export', '--no-memories'], { cwd: process.cwd() });
+    let buf = '';
+    let first = true;
+    res.write('[');
+    bd.stdout.on('data', (chunk) => {
+      buf += chunk;
+      const lines = buf.split('\n');
+      buf = lines.pop(); // keep incomplete last line
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        res.write((first ? '' : ',') + line);
+        first = false;
+      }
+    });
+    bd.stdout.on('end', () => {
+      if (buf.trim()) res.write((first ? '' : ',') + buf);
+      res.end(']');
+    });
+    bd.on('error', (err) => {
+      console.error('[beadflow] bd export failed:', err.message);
+      res.end(']');
+    });
     return;
   }
 
