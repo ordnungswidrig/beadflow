@@ -73,7 +73,7 @@ function Graph({ issues, reload, initialId }) {
     return () => clearTimeout(t);
   }, [nodes.length, fitView]);
 
-  const SIDEBAR_W = 300;
+  const SIDEBAR_W = Number(localStorage.getItem('sidebar-width')) || 300;
   const fitToNeighborhood = useCallback((id, delay = 0) => {
     const go = () => {
       const node = getNode(id);

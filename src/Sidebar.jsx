@@ -1,3 +1,12 @@
+import { useCallback, useRef } from 'react';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+function md(text) {
+  if (!text) return '';
+  return DOMPurify.sanitize(marked.parse(text));
+}
+
 const STATUS_COLOR = {
   open: '#5b8dee',
   in_progress: '#f0a500',
@@ -21,7 +30,39 @@ function fmtDate(iso) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+const MIN_W = 180;
+const MAX_W = 600;
+const DEFAULT_W = 300;
+
+function useSidebarResize() {
+  const widthRef = useRef(Number(localStorage.getItem('sidebar-width')) || DEFAULT_W);
+  const sidebarRef = useRef(null);
+
+  const onMouseDown = useCallback((e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = sidebarRef.current?.offsetWidth ?? widthRef.current;
+
+    const onMove = (me) => {
+      const delta = startX - me.clientX;
+      const next = Math.min(MAX_W, Math.max(MIN_W, startW + delta));
+      widthRef.current = next;
+      if (sidebarRef.current) sidebarRef.current.style.width = `${next}px`;
+    };
+    const onUp = () => {
+      localStorage.setItem('sidebar-width', widthRef.current);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
+  return { sidebarRef, onMouseDown, initialWidth: widthRef.current };
+}
+
 export function Sidebar({ selectedNode, allIssues, onFocusId, onAddVisible }) {
+  const { sidebarRef, onMouseDown, initialWidth } = useSidebarResize();
   const issue = selectedNode?.data?.issue;
   const byId = Object.fromEntries((allIssues || []).map((i) => [i.id, i]));
 
@@ -44,7 +85,8 @@ export function Sidebar({ selectedNode, allIssues, onFocusId, onAddVisible }) {
     : [];
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" ref={sidebarRef} style={{ width: initialWidth }}>
+      <div className="sidebar-resize-handle" onMouseDown={onMouseDown} />
       <div className="sidebar-header">
         <span className="wordmark">bead<span>flow</span></span>
       </div>
@@ -87,31 +129,31 @@ export function Sidebar({ selectedNode, allIssues, onFocusId, onAddVisible }) {
 
           {issue.description && (
             <Field label="Description">
-              <p className="sb-desc">{issue.description}</p>
+              <div className="sb-md" dangerouslySetInnerHTML={{ __html: md(issue.description) }} />
             </Field>
           )}
 
           {issue.acceptance_criteria && (
             <Field label="Acceptance Criteria">
-              <p className="sb-desc">{issue.acceptance_criteria}</p>
+              <div className="sb-md" dangerouslySetInnerHTML={{ __html: md(issue.acceptance_criteria) }} />
             </Field>
           )}
 
           {issue.notes && (
             <Field label="Notes">
-              <p className="sb-desc">{issue.notes}</p>
+              <div className="sb-md" dangerouslySetInnerHTML={{ __html: md(issue.notes) }} />
             </Field>
           )}
 
           {issue.design && (
             <Field label="Design">
-              <p className="sb-desc">{issue.design}</p>
+              <div className="sb-md" dangerouslySetInnerHTML={{ __html: md(issue.design) }} />
             </Field>
           )}
 
           {issue.close_reason && (
             <Field label="Close Reason">
-              <p className="sb-desc">{issue.close_reason}</p>
+              <div className="sb-md" dangerouslySetInnerHTML={{ __html: md(issue.close_reason) }} />
             </Field>
           )}
 
