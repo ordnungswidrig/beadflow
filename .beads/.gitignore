@@ -12,6 +12,9 @@ last-touched
 # Daemon runtime (lock, log, pid)
 daemon.*
 
+# Issue data (source of truth is Dolt, not git)
+issues.jsonl
+
 # Interactions log (runtime, not versioned)
 interactions.jsonl
 
