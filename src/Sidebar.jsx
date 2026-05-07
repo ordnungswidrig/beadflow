@@ -107,13 +107,19 @@ function SessionModal({ sessionId, allIssues, onFocusId, onClose }) {
         {session && session.messages.length > 0 && (
           <div className="session-modal__transcript">
             {session.messages.map((m, i) => (
-              <div key={i} className={`session-modal__msg session-modal__msg--${m.role}`}>
-                <span className="session-modal__msg-role">{m.role === 'assistant' ? 'Claude' : 'User'}</span>
-                <span className="session-modal__msg-text">{m.text}</span>
-              </div>
+              m.role === 'omitted'
+                ? <div key={i} className="session-modal__omitted-marker">{m.text}</div>
+                : <div key={i} className={`session-modal__msg session-modal__msg--${m.role}`}>
+                    <span className="session-modal__msg-role">{m.role === 'assistant' ? 'Claude' : 'User'}</span>
+                    <span className="session-modal__msg-text">{m.text}</span>
+                  </div>
             ))}
           </div>
         )}
+        <div className="session-modal__resume">
+          <span className="session-modal__resume-label">Resume</span>
+          <code className="session-modal__resume-cmd">claude --resume {sessionId}</code>
+        </div>
         {session && session.messages.length === 0 && (
           <div className="session-modal__empty">No conversation found for this session.</div>
         )}

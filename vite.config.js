@@ -13,7 +13,8 @@ function parseSession(sessionId, cwd) {
   ];
   let file = candidates.find((f) => fs.existsSync(f));
   if (!file) return null;
-  const MAX_CHARS = 8000;
+  const HEAD = 20;
+  const TAIL = 5;
   const all = [];
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
     if (!line.trim()) continue;
@@ -29,20 +30,18 @@ function parseSession(sessionId, cwd) {
     all.push({ role: d.type, text, ts: d.timestamp });
   }
   const totalChars = all.reduce((s, m) => s + m.text.length, 0);
-  const msgs = [];
-  let used = 0;
-  let omittedCount = 0;
-  let omittedChars = 0;
-  for (const m of all) {
-    if (used + m.text.length > MAX_CHARS) {
-      omittedCount++;
-      omittedChars += m.text.length;
-    } else {
-      used += m.text.length;
-      msgs.push(m);
-    }
+  let messages;
+  const omittedMessages = Math.max(0, all.length - HEAD - TAIL);
+  if (omittedMessages > 0) {
+    messages = [
+      ...all.slice(0, HEAD),
+      { role: 'omitted', text: `${omittedMessages} messages omitted`, ts: null },
+      ...all.slice(all.length - TAIL),
+    ];
+  } else {
+    messages = all;
   }
-  return { messages: msgs, totalMessages: all.length, omittedMessages: omittedCount, totalChars, omittedChars };
+  return { messages, totalMessages: all.length, omittedMessages, totalChars };
 }
 
 function beadsDevPlugin() {
