@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, spawnSync } from 'child_process';
+import os from 'os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, '..', 'dist');
@@ -14,6 +15,39 @@ if (!fs.existsSync(path.join(DIST, 'index.html'))) {
 }
 
 const PORT = parseInt(process.env.PORT || '7777', 10);
+
+function parseSession(sessionId, cwd) {
+  const projectKey = cwd.replace(/\//g, '-').replace(/^-/, '');
+  const candidates = [
+    path.join(os.homedir(), '.claude', 'projects', projectKey, `${sessionId}.jsonl`),
+    path.join(os.homedir(), '.claude', 'projects', `-${projectKey}`, `${sessionId}.jsonl`),
+  ];
+  const file = candidates.find((f) => fs.existsSync(f));
+  if (!file) return null;
+  const MAX_CHARS = 8000;
+  const msgs = [];
+  let total = 0;
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    let d;
+    try { d = JSON.parse(line); } catch { continue; }
+    if (!['user', 'assistant'].includes(d.type)) continue;
+    const content = d.message?.content ?? '';
+    let text = typeof content === 'string' ? content
+      : Array.isArray(content) ? content.filter(c => c.type === 'text').map(c => c.text).join(' ')
+      : '';
+    text = text.replace(/<[^>]+>/g, '').trim();
+    if (!text) continue;
+    if (total + text.length > MAX_CHARS) {
+      text = text.slice(0, MAX_CHARS - total) + '…';
+      msgs.push({ role: d.type, text, ts: d.timestamp });
+      break;
+    }
+    total += text.length;
+    msgs.push({ role: d.type, text, ts: d.timestamp });
+  }
+  return msgs;
+}
 
 const MIME = {
   '.html': 'text/html',
@@ -67,6 +101,14 @@ const server = http.createServer((req, res) => {
     res.write(':\n\n'); // initial comment to open stream
     sseClients.add(res);
     req.on('close', () => sseClients.delete(res));
+    return;
+  }
+
+  if (pathname.startsWith('/session/')) {
+    const sessionId = pathname.slice('/session/'.length);
+    const msgs = parseSession(sessionId, process.cwd());
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(msgs ?? []));
     return;
   }
 

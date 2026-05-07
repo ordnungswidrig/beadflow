@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
@@ -61,8 +61,63 @@ function useSidebarResize() {
   return { sidebarRef, onMouseDown, initialWidth: widthRef.current };
 }
 
+const STATUS_LABEL = { open: 'Open', in_progress: 'In Progress', closed: 'Closed', blocked: 'Blocked' };
+
+function SessionModal({ sessionId, allIssues, onFocusId, onClose }) {
+  const touched = allIssues.filter((i) => i.metadata?.claude_session_id === sessionId);
+  const [messages, setMessages] = useState(null);
+
+  useEffect(() => {
+    fetch(`/session/${sessionId}`)
+      .then((r) => r.ok ? r.json() : [])
+      .then(setMessages)
+      .catch(() => setMessages([]));
+  }, [sessionId]);
+
+  return (
+    <div className="session-modal-backdrop" onClick={onClose}>
+      <div className="session-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="session-modal__header">
+          <span className="session-modal__title">Claude Session</span>
+          <button className="session-modal__close" onClick={onClose}>✕</button>
+        </div>
+        <div className="session-modal__id">{sessionId}</div>
+
+        <div className="session-modal__section-label">{touched.length} bead{touched.length !== 1 ? 's' : ''} touched</div>
+        <ul className="session-modal__list session-modal__list--beads">
+          {touched.map((i) => (
+            <li key={i.id} className="session-modal__item" onClick={() => { onFocusId(i.id); onClose(); }}>
+              <span className="session-modal__item-id">{i.id}</span>
+              <span className="session-modal__item-title">{i.title}</span>
+              <span className="session-modal__item-status">{STATUS_LABEL[i.status] ?? i.status}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="session-modal__section-label">
+          {messages === null ? 'Loading conversation…' : `${messages.length} messages`}
+        </div>
+        {messages && messages.length > 0 && (
+          <div className="session-modal__transcript">
+            {messages.map((m, i) => (
+              <div key={i} className={`session-modal__msg session-modal__msg--${m.role}`}>
+                <span className="session-modal__msg-role">{m.role === 'assistant' ? 'Claude' : 'User'}</span>
+                <span className="session-modal__msg-text">{m.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {messages && messages.length === 0 && (
+          <div className="session-modal__empty">No conversation found for this session.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Sidebar({ selectedNode, allIssues, onFocusId, onAddVisible }) {
   const { sidebarRef, onMouseDown, initialWidth } = useSidebarResize();
+  const [sessionModalId, setSessionModalId] = useState(null);
   const issue = selectedNode?.data?.issue;
   const byId = Object.fromEntries((allIssues || []).map((i) => [i.id, i]));
 
@@ -226,7 +281,7 @@ export function Sidebar({ selectedNode, allIssues, onFocusId, onAddVisible }) {
               </div>
             )}
             {issue.metadata?.claude_session_id && (
-              <div className="sb-meta__row">
+              <div className="sb-meta__row sb-meta__row--clickable" onClick={() => setSessionModalId(issue.metadata.claude_session_id)}>
                 <span className="sb-meta__key">Claude session</span>
                 <span className="sb-meta__val sb-meta__val--session" title={issue.metadata.claude_session_id}>
                   {issue.metadata.claude_session_id}
@@ -235,6 +290,14 @@ export function Sidebar({ selectedNode, allIssues, onFocusId, onAddVisible }) {
             )}
           </div>
         </div>
+      )}
+      {sessionModalId && (
+        <SessionModal
+          sessionId={sessionModalId}
+          allIssues={allIssues || []}
+          onFocusId={onFocusId}
+          onClose={() => setSessionModalId(null)}
+        />
       )}
     </aside>
   );

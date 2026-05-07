@@ -731,5 +731,182 @@
   font-family: monospace;
   font-size: 9px;
   opacity: 0.6;
-  cursor: default;
+}
+
+.sb-meta__row--clickable {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: 0 -2px;
+  transition: background 0.1s;
+}
+
+.sb-meta__row--clickable:hover {
+  background: rgba(255,255,255,0.07);
+}
+
+.sb-meta__row--clickable:hover .sb-meta__val--session {
+  opacity: 0.9;
+}
+
+/* ── Session Modal ───────────────────────────────────────────── */
+
+.session-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-modal {
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  min-width: 380px;
+  max-width: 560px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+.session-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.session-modal__title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.session-modal__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.session-modal__close:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.session-modal__id {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-primary);
+  opacity: 0.6;
+  word-break: break-all;
+}
+
+.session-modal__section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.session-modal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.session-modal__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.session-modal__item:hover {
+  background: rgba(255,255,255,0.07);
+}
+
+.session-modal__item-id {
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.session-modal__item-title {
+  font-size: 11px;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-modal__item-status {
+  font-size: 9px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.session-modal__transcript {
+  overflow-y: auto;
+  max-height: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--sidebar-border);
+  padding-top: 8px;
+}
+
+.session-modal__msg {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.session-modal__msg-role {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+  padding-top: 2px;
+  min-width: 40px;
+}
+
+.session-modal__msg--user .session-modal__msg-role { color: #5b8dee; }
+.session-modal__msg--assistant .session-modal__msg-role { color: #e07b39; }
+
+.session-modal__msg-text {
+  color: var(--text-primary);
+  opacity: 0.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.session-modal__empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 0;
 }
