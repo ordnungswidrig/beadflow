@@ -139,6 +139,12 @@ export function BeadNode({ data, selected }) {
           {issue.status}
         </span>
         <div className="bead-node__actions">
+          {issue.metadata?.claude_session_id && (
+            <span
+              className="bead-node__claude-dot"
+              title={`Claude session: ${issue.metadata.claude_session_id}`}
+            />
+          )}
           {!isLast && (
             <button
               className="bead-node__action-btn"

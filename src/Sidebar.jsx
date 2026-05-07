@@ -225,6 +225,14 @@ export function Sidebar({ selectedNode, allIssues, onFocusId, onAddVisible }) {
                 <span className="sb-meta__val">{fmtDate(issue.closed_at)}</span>
               </div>
             )}
+            {issue.metadata?.claude_session_id && (
+              <div className="sb-meta__row">
+                <span className="sb-meta__key">Claude session</span>
+                <span className="sb-meta__val sb-meta__val--session" title={issue.metadata.claude_session_id}>
+                  {issue.metadata.claude_session_id}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

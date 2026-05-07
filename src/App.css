@@ -492,6 +492,17 @@
   color: var(--node-action-hover);
 }
 
+.bead-node__claude-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e07b39;
+  margin: 0 3px;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
 /* expand buttons */
 
 .expand-btn {
@@ -708,5 +719,17 @@
   font-size: 10px;
   color: var(--text-primary);
   opacity: 0.75;
-  text-align: right;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-meta__val--session {
+  font-family: monospace;
+  font-size: 9px;
+  opacity: 0.6;
+  cursor: default;
 }
