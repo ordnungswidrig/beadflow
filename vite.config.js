@@ -14,8 +14,7 @@ function parseSession(sessionId, cwd) {
   let file = candidates.find((f) => fs.existsSync(f));
   if (!file) return null;
   const MAX_CHARS = 8000;
-  const msgs = [];
-  let total = 0;
+  const all = [];
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
     if (!line.trim()) continue;
     let d;
@@ -27,15 +26,23 @@ function parseSession(sessionId, cwd) {
       : '';
     text = text.replace(/<[^>]+>/g, '').trim();
     if (!text) continue;
-    if (total + text.length > MAX_CHARS) {
-      text = text.slice(0, MAX_CHARS - total) + '…';
-      msgs.push({ role: d.type, text, ts: d.timestamp });
-      break;
-    }
-    total += text.length;
-    msgs.push({ role: d.type, text, ts: d.timestamp });
+    all.push({ role: d.type, text, ts: d.timestamp });
   }
-  return msgs;
+  const totalChars = all.reduce((s, m) => s + m.text.length, 0);
+  const msgs = [];
+  let used = 0;
+  let omittedCount = 0;
+  let omittedChars = 0;
+  for (const m of all) {
+    if (used + m.text.length > MAX_CHARS) {
+      omittedCount++;
+      omittedChars += m.text.length;
+    } else {
+      used += m.text.length;
+      msgs.push(m);
+    }
+  }
+  return { messages: msgs, totalMessages: all.length, omittedMessages: omittedCount, totalChars, omittedChars };
 }
 
 function beadsDevPlugin() {

@@ -65,13 +65,13 @@ const STATUS_LABEL = { open: 'Open', in_progress: 'In Progress', closed: 'Closed
 
 function SessionModal({ sessionId, allIssues, onFocusId, onClose }) {
   const touched = allIssues.filter((i) => i.metadata?.claude_session_id === sessionId);
-  const [messages, setMessages] = useState(null);
+  const [session, setSession] = useState(null);
 
   useEffect(() => {
     fetch(`/session/${sessionId}`)
-      .then((r) => r.ok ? r.json() : [])
-      .then(setMessages)
-      .catch(() => setMessages([]));
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setSession(d ?? { messages: [], totalMessages: 0, omittedMessages: 0, totalChars: 0, omittedChars: 0 }))
+      .catch(() => setSession({ messages: [], totalMessages: 0, omittedMessages: 0, totalChars: 0, omittedChars: 0 }));
   }, [sessionId]);
 
   return (
@@ -95,11 +95,18 @@ function SessionModal({ sessionId, allIssues, onFocusId, onClose }) {
         </ul>
 
         <div className="session-modal__section-label">
-          {messages === null ? 'Loading conversation…' : `${messages.length} messages`}
+          {session === null ? 'Loading conversation…' : (
+            <>
+              {session.totalMessages} messages · {Math.round(session.totalChars / 1024 * 10) / 10} KB
+              {session.omittedMessages > 0 && (
+                <span className="session-modal__omitted"> · {session.omittedMessages} messages omitted</span>
+              )}
+            </>
+          )}
         </div>
-        {messages && messages.length > 0 && (
+        {session && session.messages.length > 0 && (
           <div className="session-modal__transcript">
-            {messages.map((m, i) => (
+            {session.messages.map((m, i) => (
               <div key={i} className={`session-modal__msg session-modal__msg--${m.role}`}>
                 <span className="session-modal__msg-role">{m.role === 'assistant' ? 'Claude' : 'User'}</span>
                 <span className="session-modal__msg-text">{m.text}</span>
@@ -107,7 +114,7 @@ function SessionModal({ sessionId, allIssues, onFocusId, onClose }) {
             ))}
           </div>
         )}
-        {messages && messages.length === 0 && (
+        {session && session.messages.length === 0 && (
           <div className="session-modal__empty">No conversation found for this session.</div>
         )}
       </div>

@@ -866,6 +866,11 @@
   white-space: nowrap;
 }
 
+.session-modal__omitted {
+  color: #e07b39;
+  opacity: 0.8;
+}
+
 .session-modal__transcript {
   overflow-y: auto;
   max-height: 340px;
