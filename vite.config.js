@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
-import { exportBeads } from './lib/exportBeads.js'
+import { spawnSync } from 'child_process'
 
 function beadsDevPlugin() {
   const sseClients = new Set();
@@ -39,9 +39,10 @@ function beadsDevPlugin() {
       });
 
       server.middlewares.use('/beads.json', (_req, res) => {
-        const data = exportBeads();
+        const result = spawnSync('bd', ['export', '--no-memories'], { encoding: 'utf8' });
+        const lines = (result.stdout || '').trim().split('\n').filter(Boolean);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-        res.end(data);
+        res.end('[' + lines.join(',') + ']');
       });
     },
   };
