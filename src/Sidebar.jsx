@@ -66,6 +66,8 @@ const STATUS_LABEL = { open: 'Open', in_progress: 'In Progress', closed: 'Closed
 function SessionModal({ sessionId, allIssues, onFocusId, onClose }) {
   const touched = allIssues.filter((i) => i.metadata?.claude_session_id === sessionId);
   const [session, setSession] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const resumeCmd = `claude --resume ${sessionId}`;
 
   useEffect(() => {
     fetch(`/session/${sessionId}`)
@@ -73,6 +75,19 @@ function SessionModal({ sessionId, allIssues, onFocusId, onClose }) {
       .then((d) => setSession(d ?? { messages: [], totalMessages: 0, omittedMessages: 0, totalChars: 0, omittedChars: 0 }))
       .catch(() => setSession({ messages: [], totalMessages: 0, omittedMessages: 0, totalChars: 0, omittedChars: 0 }));
   }, [sessionId]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const onCopy = () => {
+    navigator.clipboard.writeText(resumeCmd).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   return (
     <div className="session-modal-backdrop" onClick={onClose}>
@@ -118,7 +133,10 @@ function SessionModal({ sessionId, allIssues, onFocusId, onClose }) {
         )}
         <div className="session-modal__resume">
           <span className="session-modal__resume-label">Resume</span>
-          <code className="session-modal__resume-cmd">claude --resume {sessionId}</code>
+          <code className="session-modal__resume-cmd">{resumeCmd}</code>
+          <button className="session-modal__copy" onClick={onCopy} title="Copy to clipboard">
+            {copied ? '✓' : '⎘'}
+          </button>
         </div>
         {session && session.messages.length === 0 && (
           <div className="session-modal__empty">No conversation found for this session.</div>
