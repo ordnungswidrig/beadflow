@@ -50,7 +50,7 @@ export function BeadNode({ data, selected }) {
 
   return (
     <div
-      className={`bead-node bead-node--${issue.issue_type || 'task'}${selected ? ' bead-node--selected' : ''}${onCriticalPath ? ' bead-node--critical' : ''}${isEpic ? ' bead-node--epic' : ''}`}
+      className={`bead-node bead-node--${issue.issue_type || 'task'}${selected ? ' bead-node--selected' : ''}${onCriticalPath ? ' bead-node--critical' : ''}${isEpic ? ' bead-node--epic' : ''}${issue.status === 'in_progress' ? ' bead-node--in-progress' : ''}`}
       style={{
         '--node-color': typeAccent,
         '--status-color': statusColor,
@@ -82,9 +82,9 @@ export function BeadNode({ data, selected }) {
         </button>
       )}
 
-      {(childOpenCount > 0 || (openChildrenExpanded && childClosedCount > 0)) && (
+      {(childOpenCount > 0 || childClosedCount > 0) && (
         <button
-          className={`expand-btn expand-btn--right${openChildrenExpanded ? ' expand-btn--secondary' : ''}`}
+          className={`expand-btn expand-btn--right${openChildrenExpanded || childOpenCount === 0 ? ' expand-btn--secondary' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
             if (!openChildrenExpanded && childOpenCount > 0) {
@@ -96,11 +96,15 @@ export function BeadNode({ data, selected }) {
           }}
           title={openChildrenExpanded
             ? `Show ${childClosedCount} closed child${childClosedCount !== 1 ? 'ren' : ''}`
-            : `Show ${childOpenCount} open${childClosedCount > 0 ? ` / ${childClosedCount} closed` : ''} child${childOpenCount + childClosedCount !== 1 ? 'ren' : ''}`}
+            : childOpenCount > 0
+              ? `Show ${childOpenCount} open${childClosedCount > 0 ? ` / ${childClosedCount} closed` : ''} child${childOpenCount + childClosedCount !== 1 ? 'ren' : ''}`
+              : `Show ${childClosedCount} closed child${childClosedCount !== 1 ? 'ren' : ''}`}
         >
           {openChildrenExpanded
             ? `+${childClosedCount}`
-            : childClosedCount > 0 ? `+${childOpenCount}/${childClosedCount}` : `+${childOpenCount}`}
+            : childOpenCount > 0
+              ? (childClosedCount > 0 ? `+${childOpenCount}/${childClosedCount}` : `+${childOpenCount}`)
+              : `+${childClosedCount}`}
         </button>
       )}
 
@@ -126,7 +130,12 @@ export function BeadNode({ data, selected }) {
       <div className="bead-node__title">{issue.title}</div>
 
       <div className="bead-node__footer">
-        <span className="bead-node__status" style={{ background: statusColor + '22', color: statusColor }}>
+        <span
+          className="bead-node__status"
+          style={issue.status === 'in_progress'
+            ? { color: statusColor }
+            : { background: statusColor + '22', color: statusColor }}
+        >
           {issue.status}
         </span>
         <div className="bead-node__actions">
