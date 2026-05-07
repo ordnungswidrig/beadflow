@@ -19,6 +19,15 @@ import { useBeadGraph } from './useBeadGraph';
 const nodeTypes = { bead: BeadNode };
 const edgeTypes = { floating: FloatingEdge };
 
+function useProjectName() {
+  useEffect(() => {
+    fetch('/project.json')
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.name) document.title = `beadflow - ${d.name}`; })
+      .catch(() => {});
+  }, []);
+}
+
 function useAllIssues() {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -219,6 +228,7 @@ function Graph({ issues, reload, initialId }) {
 }
 
 export default function App() {
+  useProjectName();
   const { issues, loading, error, reload } = useAllIssues();
 
   if (loading) {

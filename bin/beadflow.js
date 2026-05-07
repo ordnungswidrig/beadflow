@@ -3,7 +3,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, '..', 'dist');
@@ -67,6 +67,28 @@ const server = http.createServer((req, res) => {
     res.write(':\n\n'); // initial comment to open stream
     sseClients.add(res);
     req.on('close', () => sseClients.delete(res));
+    return;
+  }
+
+  if (pathname === '/project.json') {
+    const cwd = process.cwd();
+    let name = '';
+    // 1. bd config project.name
+    if (!name) {
+      const r = spawnSync('bd', ['config', 'get', 'project.name'], { cwd, encoding: 'utf8' });
+      const v = (r.stdout || '').trim();
+      if (v && !v.includes('not set')) name = v;
+    }
+    // 2. git remote name (last path segment, strip .git)
+    if (!name) {
+      const r = spawnSync('git', ['remote', 'get-url', 'origin'], { cwd, encoding: 'utf8' });
+      const url = (r.stdout || '').trim();
+      if (url) name = url.split('/').pop().replace(/\.git$/, '');
+    }
+    // 3. directory name
+    if (!name) name = path.basename(cwd);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ name }));
     return;
   }
 

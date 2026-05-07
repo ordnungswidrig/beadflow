@@ -44,6 +44,26 @@ function beadsDevPlugin() {
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
         res.end('[' + lines.join(',') + ']');
       });
+
+      server.middlewares.use('/project.json', (_req, res) => {
+        let name = '';
+        // 1. bd config project.name
+        if (!name) {
+          const r = spawnSync('bd', ['config', 'get', 'project.name'], { encoding: 'utf8' });
+          const v = (r.stdout || '').trim();
+          if (v && !v.includes('not set')) name = v;
+        }
+        // 2. git remote name (last path segment, strip .git)
+        if (!name) {
+          const r = spawnSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' });
+          const url = (r.stdout || '').trim();
+          if (url) name = url.split('/').pop().replace(/\.git$/, '');
+        }
+        // 3. directory name (parent of .beads/)
+        if (!name) name = path.basename(process.cwd());
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ name }));
+      });
     },
   };
 }
