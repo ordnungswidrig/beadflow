@@ -83,12 +83,84 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
 
   useEffect(() => {
     if (!initialized && allIssues.length > 0) {
-      const visible = new Set(allIssues.filter((i) => i.status !== 'closed').map((i) => i.id));
+      const nonClosed = allIssues.filter((i) => i.status !== 'closed');
+      const nonClosedIds = new Set(nonClosed.map((i) => i.id));
+
+      // Build parent set: id -> true if it has a parent among non-closed issues
+      const hasParent = new Set();
+      for (const issue of nonClosed) {
+        for (const dep of (issue.dependencies || [])) {
+          if (dep.type === 'parent-child' && nonClosedIds.has(dep.depends_on_id)) {
+            hasParent.add(issue.id);
+          }
+        }
+      }
+
+      // Root nodes: no blocking predecessors and no parent among non-closed
+      const roots = nonClosed.filter((i) => {
+        const blockers = (outgoing[i.id] || []).filter((dep) => nonClosedIds.has(dep));
+        return blockers.length === 0 && !hasParent.has(i.id);
+      });
+
+      // Also include in-progress nodes
+      const inProgress = nonClosed.filter((i) => i.status === 'in_progress');
+
+      const seed = new Set([
+        ...roots.map((i) => i.id),
+        ...inProgress.map((i) => i.id),
+      ]);
+
+      // Expand seed with critical path nodes: nodes on shortest blocking paths between seed nodes
+      // Build blocking adjacency among non-closed issues
+      const adj = {}; // id -> [blocked-by-id (outgoing = blockers of id)]
+      const radj = {}; // id -> [ids this blocks]
+      for (const id of nonClosedIds) { adj[id] = []; radj[id] = []; }
+      for (const issue of nonClosed) {
+        for (const dep of (issue.dependencies || [])) {
+          if (dep.type === 'parent-child') continue;
+          const blocker = dep.depends_on_id;
+          const blocked = dep.issue_id;
+          if (nonClosedIds.has(blocker) && nonClosedIds.has(blocked)) {
+            adj[blocked].push(blocker);   // blocked depends on blocker
+            radj[blocker].push(blocked);  // blocker blocks blocked
+          }
+        }
+      }
+
+      // For each pair of seed nodes, find if there's a path through intermediate nodes
+      // BFS from each seed node forward (via radj = who this node blocks) to find reachable seed nodes
+      // Any node on a path between two seed nodes gets added
+      const criticalIntermediate = new Set();
+      for (const startId of seed) {
+        // BFS forward tracking paths
+        const visited = new Map(); // id -> predecessor
+        const queue = [startId];
+        visited.set(startId, null);
+        while (queue.length) {
+          const cur = queue.shift();
+          for (const next of (radj[cur] || [])) {
+            if (!visited.has(next)) {
+              visited.set(next, cur);
+              queue.push(next);
+            }
+            // If next is another seed node, trace back and mark intermediates
+            if (seed.has(next) && next !== startId) {
+              let trace = visited.get(next);
+              while (trace && trace !== startId) {
+                criticalIntermediate.add(trace);
+                trace = visited.get(trace);
+              }
+            }
+          }
+        }
+      }
+
+      const visible = new Set([...seed, ...criticalIntermediate]);
       if (visible.size === 0) allIssues.forEach((i) => visible.add(i.id));
       setVisibleIds(visible);
       setInitialized(true);
     }
-  }, [allIssues, initialized]);
+  }, [allIssues, initialized, outgoing]);
 
   const expand = useCallback((id, direction) => {
     setVisibleIds((prev) => {
@@ -424,6 +496,30 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     });
     simNodesRef.current = simNodes;
 
+    // Establish full node objects before the sim ticks so the tick handler only needs to update positions
+    setRfNodes(simNodes.map((n, i) => {
+      const nd = nodeData[i];
+      const isEpic = nd?.issue?.issue_type === 'epic';
+      const w = isEpic ? EPIC_W : NODE_W;
+      const h = isEpic ? EPIC_H : NODE_H;
+      return {
+        id: n.id,
+        position: { x: n.x - w / 2, y: n.y - h / 2 },
+        selected: n.id === selectedId,
+        data: {
+          issue: nd?.issue,
+          inCount: nd?.inCount ?? 0,
+          outCount: nd?.outCount ?? 0,
+          childOpenCount: nd?.childOpenCount ?? 0,
+          childClosedCount: nd?.childClosedCount ?? 0,
+          parentCount: nd?.parentCount ?? 0,
+          isLast: nd?.isLast ?? false,
+          expand, closeNode, focus, expandRelated, expandChildren, expandParent, pruneNode: pruneToSelected,
+        },
+        type: 'bead',
+      };
+    }));
+
     const simNodeById = Object.fromEntries(simNodes.map((n) => [n.id, n]));
     const links = edges
       .map((e) => ({ source: simNodeById[e.source], target: simNodeById[e.target] }))
@@ -485,32 +581,17 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
       .alphaDecay(0.04)
       .velocityDecay(0.6)
       .on('tick', () => {
-        setRfNodes(simNodesRef.current.map((n, i) => {
+        const posMap = new Map();
+        simNodesRef.current.forEach((n, i) => {
           const nd = nodeData[i];
           const isEpic = nd?.issue?.issue_type === 'epic';
           const w = isEpic ? EPIC_W : NODE_W;
           const h = isEpic ? EPIC_H : NODE_H;
-          return {
-            id: n.id,
-            position: { x: n.x - w / 2, y: n.y - h / 2 },
-            selected: n.id === selectedId,
-            data: {
-              issue: nd?.issue,
-              inCount: nd?.inCount ?? 0,
-              outCount: nd?.outCount ?? 0,
-              childCount: nd?.childCount ?? 0,
-              parentCount: nd?.parentCount ?? 0,
-              isLast: nd?.isLast ?? false,
-              expand,
-              closeNode,
-              focus,
-              expandRelated,
-              expandChildren,
-              expandParent,
-              pruneNode: pruneToSelected,
-            },
-            type: 'bead',
-          };
+          posMap.set(n.id, { x: n.x - w / 2, y: n.y - h / 2 });
+        });
+        setRfNodes((prev) => prev.map((n) => {
+          const pos = posMap.get(n.id);
+          return pos ? { ...n, position: pos } : n;
         }));
       });
 
