@@ -93,9 +93,9 @@ export function FloatingEdge({ id, source, target, data }) {
           id={id}
           d={path}
           fill="none"
-          strokeWidth={2}
-          stroke={data?.closed ? 'rgba(120,120,120,0.25)' : 'rgba(150,150,220,0.45)'}
-          strokeDasharray="3,6"
+          strokeWidth={data?.critical ? 2 : 1.5}
+          stroke={data?.critical ? '#f0a500' : (data?.closed ? 'rgba(120,120,120,0.25)' : 'rgba(150,150,220,0.45)')}
+          strokeDasharray={data?.critical ? undefined : '3,6'}
           style={{ pointerEvents: 'none', cursor: 'default' }}
         />
       ) : (

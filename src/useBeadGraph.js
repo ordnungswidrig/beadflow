@@ -327,6 +327,7 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     }
 
     const edges = [];
+    const suppressedPCEdges = new Map(); // key -> edge obj, for critical path restoration
     for (const issue of allIssues) {
       if (!Array.isArray(issue.dependencies)) continue;
       for (const dep of issue.dependencies) {
@@ -341,7 +342,11 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
         const edgeClosed = srcIssue?.status === 'closed' && tgtIssue?.status === 'closed';
         if (dep.type === 'parent-child') {
           // src=epic, tgt=child — suppress if child is reachable from a sibling via blocking edges
-          if (reachableViaBlocking[src]?.has(tgt)) continue;
+          if (reachableViaBlocking[src]?.has(tgt)) {
+            suppressedPCEdges.set(key, { id: key, source: src, target: tgt, type: 'floating',
+              data: { depType: 'parent-child', closed: edgeClosed, critical: false } });
+            continue;
+          }
           edges.push({
             id: key, source: src, target: tgt, type: 'floating',
             data: { depType: 'parent-child', closed: edgeClosed, critical: false },
@@ -367,31 +372,43 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     const criticalNodes = new Set();
     const criticalEdges = new Set();
     if (ids.length > 1) {
-      // Build adjacency for visible nodes
+      // Build adjacency for visible nodes — include suppressed parent-child edges for path tracing
       const adj = {}; // id -> [tgt]
-      for (const id of ids) adj[id] = [];
-      for (const e of edges) adj[e.source]?.push(e.target);
+      const radj = {}; // id -> [src]
+      for (const id of ids) { adj[id] = []; radj[id] = []; }
+      for (const e of edges) {
+        adj[e.source]?.push(e.target);
+        radj[e.target]?.push(e.source);
+      }
+      // Note: suppressed parent-child edges are intentionally excluded from path computation
+      // because the sibling blocking chain that caused suppression provides a longer path.
 
-      // Build reverse adjacency (tgt -> sources) for tracing back to root
-      const radj = {}; // id -> [src that point to it]
-      for (const id of ids) radj[id] = [];
-      for (const e of edges) radj[e.target]?.push(e.source);
+      const selectedIssue = byId[selectedId];
+      const isEpicSelected = selectedIssue?.issue_type === 'epic';
 
-      if (selectedId && visibleSet.has(selectedId)) {
-        // Upstream: longest path from selectedId to a root (no incoming blocking edges)
+      if (selectedId && visibleSet.has(selectedId) && !isEpicSelected) {
+        // Non-epic selected: show upstream path to longest root + downstream path to longest leaf
         const upDist = {}; const upPrev = {};
         for (const id of ids) { upDist[id] = -Infinity; upPrev[id] = null; }
+        // Topological sort over the full visible graph for proper DAG longest-path
+        const topoAll = (() => {
+          const inD = {}; for (const id of ids) inD[id] = 0;
+          for (const id of ids) for (const t of (adj[id] || [])) inD[t] = (inD[t] || 0) + 1;
+          const q = ids.filter((id) => !inD[id]); const t = []; const vs = new Set(q);
+          while (q.length) { const u = q.shift(); t.push(u); for (const v of (adj[u] || [])) { inD[v]--; if (inD[v] === 0 && !vs.has(v)) { vs.add(v); q.push(v); } } }
+          return t;
+        })();
+
+        // Upstream: longest path from a root to selectedId (traverse reverse topo)
         upDist[selectedId] = 0;
-        const upQ = [selectedId];
-        const upSeen = new Set([selectedId]);
-        while (upQ.length) {
-          const u = upQ.shift();
+        for (const u of [...topoAll].reverse()) {
+          if (upDist[u] === -Infinity) continue;
           for (const src of (radj[u] || [])) {
             if (upDist[src] < upDist[u] - 1) { upDist[src] = upDist[u] - 1; upPrev[src] = u; }
-            if (!upSeen.has(src)) { upSeen.add(src); upQ.push(src); }
           }
         }
-        const root = [...upSeen].reduce((a, b) => upDist[a] <= upDist[b] ? a : b);
+        const upReachable = ids.filter((id) => upDist[id] > -Infinity);
+        const root = upReachable.length ? upReachable.reduce((a, b) => upDist[a] <= upDist[b] ? a : b) : selectedId;
         let cur = root;
         while (cur) {
           criticalNodes.add(cur);
@@ -399,49 +416,57 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
           cur = upPrev[cur];
         }
 
-        // Downstream: longest path from selectedId to a leaf (no outgoing blocking edges)
+        // Downstream: longest path from selectedId to a leaf
         const dnDist = {}; const dnPrev = {};
         for (const id of ids) { dnDist[id] = -Infinity; dnPrev[id] = null; }
         dnDist[selectedId] = 0;
-        const dnQ = [selectedId];
-        const dnSeen = new Set([selectedId]);
-        while (dnQ.length) {
-          const u = dnQ.shift();
+        for (const u of topoAll) {
+          if (dnDist[u] === -Infinity) continue;
           for (const tgt of (adj[u] || [])) {
             if (dnDist[tgt] < dnDist[u] + 1) { dnDist[tgt] = dnDist[u] + 1; dnPrev[tgt] = u; }
-            if (!dnSeen.has(tgt)) { dnSeen.add(tgt); dnQ.push(tgt); }
           }
         }
-        const leaf = [...dnSeen].reduce((a, b) => dnDist[a] >= dnDist[b] ? a : b);
+        const dnReachable = ids.filter((id) => dnDist[id] > -Infinity);
+        const leaf = dnReachable.length ? dnReachable.reduce((a, b) => dnDist[a] >= dnDist[b] ? a : b) : selectedId;
         cur = leaf;
         while (cur) {
           criticalNodes.add(cur);
           if (dnPrev[cur]) criticalEdges.add(`${dnPrev[cur]}->${cur}`);
           cur = dnPrev[cur];
         }
-      } else {
-        // No selection: highlight global longest path
+      } else if (isEpicSelected) {
+        // Epic selected: longest chain scoped to the epic's subtree
+        const subtree = new Set([selectedId]);
+        const q = [selectedId];
+        while (q.length) {
+          const u = q.shift();
+          for (const v of (adj[u] || [])) { if (!subtree.has(v)) { subtree.add(v); q.push(v); } }
+        }
+        let scopeIds = ids.filter((id) => subtree.has(id));
         const dist = {}; const prev = {};
-        for (const id of ids) { dist[id] = 1; prev[id] = null; }
+        const scopeSet = new Set(scopeIds);
+        for (const id of scopeIds) { dist[id] = 1; prev[id] = null; }
         const inDeg = {};
-        for (const id of ids) inDeg[id] = 0;
-        for (const e of edges) inDeg[e.target] = (inDeg[e.target] || 0) + 1;
-        const queue = ids.filter((id) => !inDeg[id]);
+        for (const id of scopeIds) inDeg[id] = 0;
+        for (const e of edges) { if (scopeSet.has(e.source) && scopeSet.has(e.target)) inDeg[e.target]++; }
+        const queue = scopeIds.filter((id) => !inDeg[id]);
         const topo = [];
         const vis = new Set(queue);
         while (queue.length) {
           const u = queue.shift(); topo.push(u);
           for (const v of (adj[u] || [])) {
+            if (!scopeSet.has(v)) continue;
             inDeg[v]--;
             if (inDeg[v] === 0 && !vis.has(v)) { vis.add(v); queue.push(v); }
           }
         }
         for (const u of topo) {
           for (const v of (adj[u] || [])) {
+            if (!scopeSet.has(v)) continue;
             if (dist[u] + 1 > dist[v]) { dist[v] = dist[u] + 1; prev[v] = u; }
           }
         }
-        let endNode = ids.reduce((a, b) => dist[a] >= dist[b] ? a : b);
+        let endNode = scopeIds.reduce((a, b) => dist[a] >= dist[b] ? a : b);
         let cur = endNode;
         while (cur) {
           criticalNodes.add(cur);
@@ -453,6 +478,15 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
 
     // Mark critical edges (only when highlight is enabled)
     for (const e of edges) e.data.critical = showCritical && criticalEdges.has(e.id);
+    // Restore suppressed parent-child edges that lie on the critical path
+    if (showCritical) {
+      for (const [key, e] of suppressedPCEdges) {
+        if (criticalEdges.has(key)) {
+          e.data.critical = true;
+          edges.push(e);
+        }
+      }
+    }
 
     // Count hidden parent-child neighbors per node
     const hiddenChildOpen = {};   // epicId -> count of hidden open children
