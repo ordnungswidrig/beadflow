@@ -378,32 +378,46 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
       for (const e of edges) radj[e.target]?.push(e.source);
 
       if (selectedId && visibleSet.has(selectedId)) {
-        // Trace from selectedId back to cluster root via BFS on reverse edges
-        // picking the path with most hops (longest upstream chain)
-        const dist = {}; const prev = {};
-        for (const id of ids) { dist[id] = -Infinity; prev[id] = null; }
-        dist[selectedId] = 0;
-        // BFS upstream
-        const q = [selectedId];
-        const seen = new Set([selectedId]);
-        while (q.length) {
-          const u = q.shift();
+        // Upstream: longest path from selectedId to a root (no incoming blocking edges)
+        const upDist = {}; const upPrev = {};
+        for (const id of ids) { upDist[id] = -Infinity; upPrev[id] = null; }
+        upDist[selectedId] = 0;
+        const upQ = [selectedId];
+        const upSeen = new Set([selectedId]);
+        while (upQ.length) {
+          const u = upQ.shift();
           for (const src of (radj[u] || [])) {
-            if (dist[src] < dist[u] - 1) {
-              dist[src] = dist[u] - 1;
-              prev[src] = u; // src -> u edge
-            }
-            if (!seen.has(src)) { seen.add(src); q.push(src); }
+            if (upDist[src] < upDist[u] - 1) { upDist[src] = upDist[u] - 1; upPrev[src] = u; }
+            if (!upSeen.has(src)) { upSeen.add(src); upQ.push(src); }
           }
         }
-        // Root is the node with the most negative dist (furthest upstream)
-        const root = [...seen].reduce((a, b) => dist[a] <= dist[b] ? a : b);
-        // Trace from root to selectedId
+        const root = [...upSeen].reduce((a, b) => upDist[a] <= upDist[b] ? a : b);
         let cur = root;
         while (cur) {
           criticalNodes.add(cur);
-          if (prev[cur]) criticalEdges.add(`${cur}->${prev[cur]}`);
-          cur = prev[cur];
+          if (upPrev[cur]) criticalEdges.add(`${cur}->${upPrev[cur]}`);
+          cur = upPrev[cur];
+        }
+
+        // Downstream: longest path from selectedId to a leaf (no outgoing blocking edges)
+        const dnDist = {}; const dnPrev = {};
+        for (const id of ids) { dnDist[id] = -Infinity; dnPrev[id] = null; }
+        dnDist[selectedId] = 0;
+        const dnQ = [selectedId];
+        const dnSeen = new Set([selectedId]);
+        while (dnQ.length) {
+          const u = dnQ.shift();
+          for (const tgt of (adj[u] || [])) {
+            if (dnDist[tgt] < dnDist[u] + 1) { dnDist[tgt] = dnDist[u] + 1; dnPrev[tgt] = u; }
+            if (!dnSeen.has(tgt)) { dnSeen.add(tgt); dnQ.push(tgt); }
+          }
+        }
+        const leaf = [...dnSeen].reduce((a, b) => dnDist[a] >= dnDist[b] ? a : b);
+        cur = leaf;
+        while (cur) {
+          criticalNodes.add(cur);
+          if (dnPrev[cur]) criticalEdges.add(`${dnPrev[cur]}->${cur}`);
+          cur = dnPrev[cur];
         }
       } else {
         // No selection: highlight global longest path
@@ -578,7 +592,7 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     const n = simNodes.length;
     // Scale forces to node count: less repulsion and tighter links for large graphs
     const chargeStrength = Math.max(-300, -500 * Math.min(1, 10 / n));
-    const baseDistance = Math.max(120, 220 * Math.min(1, 12 / n));
+    const baseDistance = Math.max(160, 280 * Math.min(1, 12 / n));
     // Hard bound: keep nodes within a radius proportional to sqrt(n)
     const boundR = Math.max(400, 180 * Math.sqrt(n));
 
@@ -591,7 +605,10 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
       .force('collide', forceCollide((n) => {
         const nd = nodeData.find((d) => d.id === n.id);
         const isEpic = nd?.issue?.issue_type === 'epic';
-        return Math.max(isEpic ? EPIC_W : NODE_W, isEpic ? EPIC_H : NODE_H) * 0.6;
+        // Use half the diagonal so rectangular nodes don't overlap; extra padding for edge labels
+        const w = isEpic ? EPIC_W : NODE_W;
+        const h = isEpic ? EPIC_H : NODE_H;
+        return Math.sqrt(w * w + h * h) * 0.55;
       }))
       .force('center', forceCenter(0, 0).strength(0.05))
       // Hard bounding force — prevent nodes from flying off screen
