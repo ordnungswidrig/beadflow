@@ -45,10 +45,14 @@ function parseSession(sessionId, cwd) {
 }
 
 function beadsDevPlugin() {
+  const PROJECT_DIR = process.env.BEADFLOW_DIR
+    ? path.resolve(process.env.BEADFLOW_DIR)
+    : process.cwd();
+
   const sseClients = new Set();
 
   function watchBeads(server) {
-    const watchFile = path.resolve('.beads/issues.jsonl');
+    const watchFile = path.join(PROJECT_DIR, '.beads/issues.jsonl');
     if (!fs.existsSync(watchFile)) return;
     let debounce = null;
     fs.watch(watchFile, () => {
@@ -56,7 +60,6 @@ function beadsDevPlugin() {
       debounce = setTimeout(() => {
         console.log('[beads] changed — notifying clients');
         for (const res of sseClients) res.write('event: reload\ndata: {}\n\n');
-        // Also trigger Vite HMR reload
         server.ws.send({ type: 'full-reload' });
       }, 300);
     });
@@ -65,6 +68,7 @@ function beadsDevPlugin() {
   return {
     name: 'beads-dev',
     configureServer(server) {
+      console.log(`[beads] project dir: ${PROJECT_DIR}`);
       watchBeads(server);
 
       server.middlewares.use('/_events', (req, res) => {
@@ -79,7 +83,7 @@ function beadsDevPlugin() {
       });
 
       server.middlewares.use('/beads.json', (_req, res) => {
-        const result = spawnSync('bd', ['export', '--no-memories'], { encoding: 'utf8' });
+        const result = spawnSync('bd', ['export', '--no-memories'], { encoding: 'utf8', cwd: PROJECT_DIR });
         const lines = (result.stdout || '').trim().split('\n').filter(Boolean);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
         res.end('[' + lines.join(',') + ']');
@@ -88,27 +92,24 @@ function beadsDevPlugin() {
       server.middlewares.use('/session/', (req, res, next) => {
         const sessionId = req.url?.replace(/^\//, '').split('?')[0];
         if (!sessionId) return next();
-        const msgs = parseSession(sessionId, process.cwd());
+        const msgs = parseSession(sessionId, PROJECT_DIR);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
         res.end(JSON.stringify(msgs ?? []));
       });
 
       server.middlewares.use('/project.json', (_req, res) => {
         let name = '';
-        // 1. bd config project.name
         if (!name) {
-          const r = spawnSync('bd', ['config', 'get', 'project.name'], { encoding: 'utf8' });
+          const r = spawnSync('bd', ['config', 'get', 'project.name'], { encoding: 'utf8', cwd: PROJECT_DIR });
           const v = (r.stdout || '').trim();
           if (v && !v.includes('not set')) name = v;
         }
-        // 2. git remote name (last path segment, strip .git)
         if (!name) {
-          const r = spawnSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' });
+          const r = spawnSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8', cwd: PROJECT_DIR });
           const url = (r.stdout || '').trim();
           if (url) name = url.split('/').pop().replace(/\.git$/, '');
         }
-        // 3. directory name (parent of .beads/)
-        if (!name) name = path.basename(process.cwd());
+        if (!name) name = path.basename(PROJECT_DIR);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
         res.end(JSON.stringify({ name }));
       });

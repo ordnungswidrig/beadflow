@@ -16,6 +16,12 @@ if (!fs.existsSync(path.join(DIST, 'index.html'))) {
 
 const PORT = parseInt(process.env.PORT || '7777', 10);
 
+// Parse --dir / -d <path> from argv
+const dirArgIdx = process.argv.findIndex((a) => a === '--dir' || a === '-d');
+const PROJECT_DIR = dirArgIdx !== -1 && process.argv[dirArgIdx + 1]
+  ? path.resolve(process.argv[dirArgIdx + 1])
+  : process.cwd();
+
 function parseSession(sessionId, cwd) {
   const projectKey = cwd.replace(/\//g, '-').replace(/^-/, '');
   const candidates = [
@@ -78,7 +84,7 @@ function notifyClients() {
 
 // Watch .beads/issues.jsonl for changes
 function watchBeads() {
-  const beadsDir = path.join(process.cwd(), '.beads');
+  const beadsDir = path.join(PROJECT_DIR, '.beads');
   const watchFile = path.join(beadsDir, 'issues.jsonl');
   if (!fs.existsSync(watchFile)) return;
 
@@ -112,14 +118,14 @@ const server = http.createServer((req, res) => {
 
   if (pathname.startsWith('/session/')) {
     const sessionId = pathname.slice('/session/'.length);
-    const msgs = parseSession(sessionId, process.cwd());
+    const msgs = parseSession(sessionId, PROJECT_DIR);
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(msgs ?? []));
     return;
   }
 
   if (pathname === '/project.json') {
-    const cwd = process.cwd();
+    const cwd = PROJECT_DIR;
     let name = '';
     // 1. bd config project.name
     if (!name) {
@@ -143,7 +149,7 @@ const server = http.createServer((req, res) => {
   // Serve beads.json by streaming bd export and wrapping JSONL into a JSON array
   if (pathname === '/beads.json') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    const bd = spawn('bd', ['export', '--no-memories'], { cwd: process.cwd() });
+    const bd = spawn('bd', ['export', '--no-memories'], { cwd: PROJECT_DIR });
     let buf = '';
     let first = true;
     res.write('[');
@@ -192,6 +198,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   const url = `http://localhost:${PORT}`;
-  console.log(`\n  beadflow  →  ${url}\n`);
+  console.log(`\n  beadflow  →  ${url}`)
+  console.log(`  project   →  ${PROJECT_DIR}\n`);
   watchBeads();
 });

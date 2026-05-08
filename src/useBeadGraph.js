@@ -280,26 +280,50 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     const visibleSet = new Set(ids);
 
     const seenEdges = new Set();
-    // First pass: collect visible blocking edges and parent memberships
-    const blockingNeighbors = {}; // id -> Set of visible ids connected via blocking edges
-    const epicChildren = {};      // epicId -> Set of visible child ids
+    // First pass: collect visible blocking edges (directed: blocker→blocked) and epic memberships
+    const blockingOut = {};  // blocker id -> Set of blocked ids
+    const epicChildren = {}; // epicId -> Set of visible child ids
     for (const issue of allIssues) {
       if (!Array.isArray(issue.dependencies)) continue;
       for (const dep of issue.dependencies) {
-        const src = dep.depends_on_id;
-        const tgt = dep.issue_id;
+        const src = dep.depends_on_id; // blocker / epic
+        const tgt = dep.issue_id;      // blocked / child
         if (!visibleSet.has(src) || !visibleSet.has(tgt)) continue;
         if (dep.type === 'parent-child') {
-          // src is the epic, tgt is the child
           if (!epicChildren[src]) epicChildren[src] = new Set();
           epicChildren[src].add(tgt);
         } else {
-          if (!blockingNeighbors[src]) blockingNeighbors[src] = new Set();
-          if (!blockingNeighbors[tgt]) blockingNeighbors[tgt] = new Set();
-          blockingNeighbors[src].add(tgt);
-          blockingNeighbors[tgt].add(src);
+          if (!blockingOut[src]) blockingOut[src] = new Set();
+          blockingOut[src].add(tgt);
         }
       }
+    }
+
+    // For each epic, compute which children are reachable from another sibling via blocking edges
+    // (i.e. there's a blocker→...→child path entirely within the sibling set)
+    const reachableViaBlocking = {}; // epicId -> Set of child ids reachable through siblings
+    for (const [epicId, children] of Object.entries(epicChildren)) {
+      const reachable = new Set();
+      const queue = [];
+      // Seed: any child that is blocked by another sibling
+      for (const child of children) {
+        for (const blocker of children) {
+          if (blocker !== child && blockingOut[blocker]?.has(child)) {
+            if (!reachable.has(child)) { reachable.add(child); queue.push(child); }
+          }
+        }
+      }
+      // BFS: propagate through siblings
+      while (queue.length) {
+        const cur = queue.shift();
+        for (const next of (blockingOut[cur] || [])) {
+          if (children.has(next) && !reachable.has(next)) {
+            reachable.add(next);
+            queue.push(next);
+          }
+        }
+      }
+      reachableViaBlocking[epicId] = reachable;
     }
 
     const edges = [];
@@ -316,11 +340,8 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
         const tgtIssue = byId[tgt];
         const edgeClosed = srcIssue?.status === 'closed' && tgtIssue?.status === 'closed';
         if (dep.type === 'parent-child') {
-          // src=epic, tgt=child — suppress if child has a blocking edge to any sibling
-          const siblings = epicChildren[src] || new Set();
-          const childBlockingNeighbors = blockingNeighbors[tgt] || new Set();
-          const hasBlockingSibling = [...childBlockingNeighbors].some((n) => siblings.has(n));
-          if (hasBlockingSibling) continue;
+          // src=epic, tgt=child — suppress if child is reachable from a sibling via blocking edges
+          if (reachableViaBlocking[src]?.has(tgt)) continue;
           edges.push({
             id: key, source: src, target: tgt, type: 'floating',
             data: { depType: 'parent-child', closed: edgeClosed, critical: false },
@@ -624,7 +645,7 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
         }
         const maxDepth = Math.max(1, ...Object.values(depth));
         const LAYER_H = 180;
-        return forceY((n) => n.cy + (depth[n.id] ?? 0) / maxDepth * maxDepth * LAYER_H).strength(0.5);
+        return forceY((n) => (depth[n.id] ?? 0) * LAYER_H).strength(0.5);
       })())
       .alphaDecay(0.04)
       .velocityDecay(0.6)
