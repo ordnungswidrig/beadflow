@@ -522,7 +522,7 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
 
     const simNodeById = Object.fromEntries(simNodes.map((n) => [n.id, n]));
     const links = edges
-      .map((e) => ({ source: simNodeById[e.source], target: simNodeById[e.target] }))
+      .map((e) => ({ source: simNodeById[e.source], target: simNodeById[e.target], depType: e.data?.depType }))
       .filter((l) => l.source && l.target);
 
     if (simRef.current) simRef.current.stop();
@@ -530,12 +530,15 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     const n = simNodes.length;
     // Scale forces to node count: less repulsion and tighter links for large graphs
     const chargeStrength = Math.max(-300, -500 * Math.min(1, 10 / n));
-    const linkDistance = Math.max(120, 220 * Math.min(1, 12 / n));
+    const baseDistance = Math.max(120, 220 * Math.min(1, 12 / n));
     // Hard bound: keep nodes within a radius proportional to sqrt(n)
     const boundR = Math.max(400, 180 * Math.sqrt(n));
 
     const sim = forceSimulation(simNodes)
-      .force('link', forceLink(links).distance(linkDistance).strength(0.7))
+      .force('link', forceLink(links)
+        .distance((l) => l.depType === 'parent-child' ? baseDistance * 1.8 : baseDistance)
+        .strength((l) => l.depType === 'parent-child' ? 0.3 : 0.9)
+      )
       .force('charge', forceManyBody().strength(chargeStrength))
       .force('collide', forceCollide((n) => {
         const nd = nodeData.find((d) => d.id === n.id);
