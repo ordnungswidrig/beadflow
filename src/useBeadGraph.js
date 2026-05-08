@@ -280,6 +280,28 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
     const visibleSet = new Set(ids);
 
     const seenEdges = new Set();
+    // First pass: collect visible blocking edges and parent memberships
+    const blockingNeighbors = {}; // id -> Set of visible ids connected via blocking edges
+    const epicChildren = {};      // epicId -> Set of visible child ids
+    for (const issue of allIssues) {
+      if (!Array.isArray(issue.dependencies)) continue;
+      for (const dep of issue.dependencies) {
+        const src = dep.depends_on_id;
+        const tgt = dep.issue_id;
+        if (!visibleSet.has(src) || !visibleSet.has(tgt)) continue;
+        if (dep.type === 'parent-child') {
+          // src is the epic, tgt is the child
+          if (!epicChildren[src]) epicChildren[src] = new Set();
+          epicChildren[src].add(tgt);
+        } else {
+          if (!blockingNeighbors[src]) blockingNeighbors[src] = new Set();
+          if (!blockingNeighbors[tgt]) blockingNeighbors[tgt] = new Set();
+          blockingNeighbors[src].add(tgt);
+          blockingNeighbors[tgt].add(src);
+        }
+      }
+    }
+
     const edges = [];
     for (const issue of allIssues) {
       if (!Array.isArray(issue.dependencies)) continue;
@@ -294,6 +316,11 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
         const tgtIssue = byId[tgt];
         const edgeClosed = srcIssue?.status === 'closed' && tgtIssue?.status === 'closed';
         if (dep.type === 'parent-child') {
+          // src=epic, tgt=child — suppress if child has a blocking edge to any sibling
+          const siblings = epicChildren[src] || new Set();
+          const childBlockingNeighbors = blockingNeighbors[tgt] || new Set();
+          const hasBlockingSibling = [...childBlockingNeighbors].some((n) => siblings.has(n));
+          if (hasBlockingSibling) continue;
           edges.push({
             id: key, source: src, target: tgt, type: 'floating',
             data: { depType: 'parent-child', closed: edgeClosed, critical: false },
