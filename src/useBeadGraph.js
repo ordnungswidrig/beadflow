@@ -574,13 +574,31 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
         force.initialize = () => {};
         return force;
       })())
-      .force('y', forceY((n) => {
-        const hasOut = links.some((l) => l.source === n);
-        const hasIn = links.some((l) => l.target === n);
-        if (hasOut && !hasIn) return n.cy - 80;
-        if (hasIn && !hasOut) return n.cy + 80;
-        return n.cy;
-      }).strength(0.2))
+      .force('y', (() => {
+        // Compute topological depth on blocking edges only (parent-child ignored)
+        const blockingLinks = links.filter((l) => l.depType !== 'parent-child');
+        const depth = {};
+        const ids = simNodes.map((n) => n.id);
+        for (const id of ids) depth[id] = 0;
+        // Kahn-style relaxation: depth[blocked] = max(depth[blocker] + 1)
+        for (let pass = 0; pass < ids.length; pass++) {
+          let changed = false;
+          for (const l of blockingLinks) {
+            const sid = typeof l.source === 'object' ? l.source.id : l.source;
+            const tid = typeof l.target === 'object' ? l.target.id : l.target;
+            if (depth[sid] !== undefined && depth[tid] !== undefined) {
+              if (depth[sid] + 1 > depth[tid]) {
+                depth[tid] = depth[sid] + 1;
+                changed = true;
+              }
+            }
+          }
+          if (!changed) break;
+        }
+        const maxDepth = Math.max(1, ...Object.values(depth));
+        const LAYER_H = 180;
+        return forceY((n) => n.cy + (depth[n.id] ?? 0) / maxDepth * maxDepth * LAYER_H).strength(0.5);
+      })())
       .alphaDecay(0.04)
       .velocityDecay(0.6)
       .on('tick', () => {
