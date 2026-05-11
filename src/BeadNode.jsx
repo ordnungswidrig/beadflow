@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Position } from '@xyflow/react';
 
 const STATUS_COLOR = {
   open: '#5b8dee',
@@ -26,9 +26,6 @@ const TYPE_ICON = {
   decision: '◇',
 };
 
-const EPIC_W = 320;
-const EPIC_H = 110;
-
 const PRIORITY_LABEL = ['P0', 'P1', 'P2', 'P3', 'P4'];
 
 // Priority → top border thickness and node opacity (for open issues)
@@ -36,7 +33,7 @@ const PRIORITY_BORDER = [3, 2.5, 2, 1.5, 1];
 const PRIORITY_OPACITY = [1, 0.92, 0.82, 0.7, 0.55];
 
 export function BeadNode({ data, selected }) {
-  const { issue, inCount, outCount, childOpenCount, childClosedCount, parentCount, isLast, onCriticalPath, expand, closeNode, focus, expandRelated, expandChildren, expandParent, pruneNode } = data;
+  const { issue, inCount, outCount, childOpenCount, childClosedCount, parentCount, isLast, onCriticalPath, expand, closeNode, expandChildren, expandParent, pruneNode } = data;
   const [openChildrenExpanded, setOpenChildrenExpanded] = useState(false);
   const isClosed = issue.status === 'closed';
   const isEpic = issue.issue_type === 'epic';

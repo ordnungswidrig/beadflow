@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -59,7 +59,7 @@ function Graph({ issues, reload, initialId }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState(null);
   const [showCritical, setShowCritical] = useState(false);
-  const { fitView, getNode, setCenter, getViewport } = useReactFlow();
+  const { fitView, getNode, setCenter } = useReactFlow();
 
   const selectedId = selectedNode?.id ?? null;
   const { edges: computedEdges, hideClosed, pruneToSelected, showAll, focus, addVisible, expandRelated, onNodeDrag, onNodeDragStop } = useBeadGraph(issues, setNodes, showCritical, selectedId);
@@ -98,7 +98,7 @@ function Graph({ issues, reload, initialId }) {
       setTimeout(() => { programmaticMoveRef.current = false; }, 600);
     };
     delay ? setTimeout(go, delay) : go();
-  }, [getNode, setCenter]);
+  }, [getNode, setCenter, SIDEBAR_W]);
 
   const pushHistory = useCallback((id) => {
     const url = new URL(window.location.href);

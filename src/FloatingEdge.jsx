@@ -30,7 +30,6 @@ function borderPoint(center, target) {
 }
 
 const ARROW_ID = 'beadflow-arrow';
-const ARROW_SIZE = 8;
 
 const TYPE_STROKE = {
   bug:     'rgba(220,85,85,0.5)',

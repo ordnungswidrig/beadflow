@@ -6,7 +6,6 @@ import {
   forceCollide,
   forceCenter,
   forceY,
-  forceRadial,
 } from 'd3-force';
 
 const NODE_W = 240;
@@ -694,7 +693,6 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
           }
           if (!changed) break;
         }
-        const maxDepth = Math.max(1, ...Object.values(depth));
         const LAYER_H = 180;
         return forceY((n) => (depth[n.id] ?? 0) * LAYER_H).strength(0.5);
       })())
