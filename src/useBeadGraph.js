@@ -298,31 +298,20 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
       }
     }
 
-    // For each epic, compute which children are reachable from another sibling via blocking edges
-    // (i.e. there's a blocker→...→child path entirely within the sibling set)
-    const reachableViaBlocking = {}; // epicId -> Set of child ids reachable through siblings
+    // For each epic, suppress parent-child edges for children that block at least one sibling.
+    // Keep the parent-child edge only for leaf children (those that don't block any sibling).
+    const reachableViaBlocking = {}; // epicId -> Set of child ids whose PC edge is suppressed
     for (const [epicId, children] of Object.entries(epicChildren)) {
-      const reachable = new Set();
-      const queue = [];
-      // Seed: any child that is blocked by another sibling
+      const suppress = new Set();
       for (const child of children) {
-        for (const blocker of children) {
-          if (blocker !== child && blockingOut[blocker]?.has(child)) {
-            if (!reachable.has(child)) { reachable.add(child); queue.push(child); }
+        for (const sibling of children) {
+          if (sibling !== child && blockingOut[child]?.has(sibling)) {
+            suppress.add(child);
+            break;
           }
         }
       }
-      // BFS: propagate through siblings
-      while (queue.length) {
-        const cur = queue.shift();
-        for (const next of (blockingOut[cur] || [])) {
-          if (children.has(next) && !reachable.has(next)) {
-            reachable.add(next);
-            queue.push(next);
-          }
-        }
-      }
-      reachableViaBlocking[epicId] = reachable;
+      reachableViaBlocking[epicId] = suppress;
     }
 
     const edges = [];
@@ -379,8 +368,11 @@ export function useBeadGraph(allIssues, setRfNodes, showCritical = false, select
         adj[e.source]?.push(e.target);
         radj[e.target]?.push(e.source);
       }
-      // Note: suppressed parent-child edges are intentionally excluded from path computation
-      // because the sibling blocking chain that caused suppression provides a longer path.
+      // Also add suppressed parent-child edges to adjacency so they can appear on critical path
+      for (const [, e] of suppressedPCEdges) {
+        if (adj[e.source] && !adj[e.source].includes(e.target)) adj[e.source].push(e.target);
+        if (radj[e.target] && !radj[e.target].includes(e.source)) radj[e.target].push(e.source);
+      }
 
       const selectedIssue = byId[selectedId];
       const isEpicSelected = selectedIssue?.issue_type === 'epic';

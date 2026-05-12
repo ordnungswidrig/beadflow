@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Position } from '@xyflow/react';
+import { Handle, Position } from '@xyflow/react';
 
 const STATUS_COLOR = {
   open: '#5b8dee',
